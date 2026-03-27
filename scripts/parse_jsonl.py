@@ -64,8 +64,41 @@ def parse_jsonl(filepath: str, offset: int = 0) -> list[dict]:
     return lines
 
 
+def _strip_injected_tags(text: str) -> str:
+    """Strip IDE-injected and system tags from text."""
+    text = re.sub(
+        r"<(?:ide_opened_file|ide_selection|system-reminder|context|command-name|user_query)>.*?"
+        r"</(?:ide_opened_file|ide_selection|system-reminder|context|command-name|user_query)>",
+        "", text, flags=re.DOTALL,
+    )
+    return text.strip()
+
+
+def _tool_detail(name: str, inp: dict) -> str:
+    """Extract a one-line detail string for a tool call."""
+    if name == "Bash":
+        desc = inp.get("description", "")
+        cmd = inp.get("command", "")
+        return desc if desc else (cmd[:120] + "..." if len(cmd) > 120 else cmd)
+    if name in ("Read", "Glob"):
+        return inp.get("file_path", "") or inp.get("pattern", "") or inp.get("path", "")
+    if name == "Grep":
+        pattern = inp.get("pattern", "")
+        path = inp.get("path", "")
+        return f"{pattern}" + (f" in {path}" if path else "")
+    if name in ("Write", "Edit", "NotebookEdit"):
+        return inp.get("file_path", "")
+    if name == "Agent":
+        return inp.get("description", "")
+    if name == "Skill":
+        return inp.get("skill", "")
+    if name in ("WebFetch", "WebSearch"):
+        return inp.get("url", "") or inp.get("query", "")
+    return ""
+
+
 def extract_messages(entries: list[dict]) -> list[dict]:
-    """Extract user/assistant message pairs in order."""
+    """Extract user/assistant/tool entries in order for condensed transcript."""
     messages = []
     for entry in entries:
         t = entry.get("type")
@@ -73,55 +106,53 @@ def extract_messages(entries: list[dict]) -> list[dict]:
             continue
         msg = entry.get("message", {})
         content = msg.get("content", "")
+        timestamp = entry.get("timestamp")
 
-        if isinstance(content, str):
-            text = content
-        elif isinstance(content, list):
-            parts = []
-            for block in content:
-                if isinstance(block, dict):
-                    if block.get("type") == "text":
+        if t == "user":
+            # Extract user text only (skip tool_result blocks)
+            if isinstance(content, str):
+                text = content
+            elif isinstance(content, list):
+                parts = []
+                for block in content:
+                    if isinstance(block, dict) and block.get("type") == "text":
                         parts.append(block.get("text", ""))
-                    elif block.get("type") == "tool_use":
-                        name = block.get("name", "unknown")
-                        inp = block.get("input", {})
-                        parts.append(f"[Tool: {name}]")
-                        if name in ("Read", "Glob", "Grep"):
-                            path = inp.get("file_path") or inp.get("pattern") or inp.get("path", "")
-                            if path:
-                                parts.append(f"  → {path}")
-                        elif name == "Bash":
-                            cmd = inp.get("command", "")
-                            parts.append(f"  → {cmd[:200]}")
-                        elif name in ("Write", "Edit"):
-                            path = inp.get("file_path", "")
-                            parts.append(f"  → {path}")
-                        elif name == "Agent":
-                            desc = inp.get("description", "")
-                            parts.append(f"  → {desc}")
-                    elif block.get("type") == "tool_result":
-                        continue  # skip tool results in condensed view
-                    elif block.get("type") == "thinking":
-                        continue  # skip thinking blocks
-            text = "\n".join(parts)
-        else:
-            text = str(content)
+                text = "\n".join(parts)
+            else:
+                text = str(content)
 
-        # Strip IDE-injected context tags
-        text = re.sub(r"<(?:ide_opened_file|system-reminder|context)>.*?</(?:ide_opened_file|system-reminder|context)>", "", text, flags=re.DOTALL)
-        text = text.strip()
+            text = _strip_injected_tags(text)
+            # Skip skill instruction injections
+            if text.startswith("Base directory for this skill:"):
+                continue
+            if not text:
+                continue
 
-        if not text:
-            continue
+            messages.append({"role": "user", "text": text, "timestamp": timestamp})
 
-        messages.append({
-            "role": t,
-            "uuid": entry.get("uuid"),
-            "timestamp": entry.get("timestamp"),
-            "text": text,
-            "model": msg.get("model"),
-            "stop_reason": msg.get("stop_reason"),
-        })
+        elif t == "assistant":
+            if not isinstance(content, list):
+                continue
+
+            # Emit text blocks and tool calls as separate entries
+            for block in content:
+                if not isinstance(block, dict):
+                    continue
+                if block.get("type") == "text":
+                    text = _strip_injected_tags(block.get("text", ""))
+                    if text:
+                        messages.append({"role": "assistant", "text": text, "timestamp": timestamp})
+                elif block.get("type") == "tool_use":
+                    name = block.get("name", "unknown")
+                    inp = block.get("input", {})
+                    detail = _tool_detail(name, inp)
+                    messages.append({
+                        "role": "tool",
+                        "text": f"{name}: {detail}" if detail else name,
+                        "timestamp": timestamp,
+                    })
+                # Skip thinking blocks and other types
+
     return messages
 
 
@@ -237,21 +268,36 @@ def get_file_snapshots(entries: list[dict]) -> list[dict]:
     return snapshots
 
 
-def format_condensed_transcript(messages: list[dict], max_lines: int = None) -> str:
-    """Format messages into a condensed readable transcript."""
+def format_condensed_transcript(messages: list[dict], max_lines: int = None,
+                                modified_files: list[str] = None) -> str:
+    """Format messages into Entire-style condensed transcript."""
     lines = []
     for msg in messages:
-        role = "User" if msg["role"] == "user" else "Assistant"
-        ts = msg.get("timestamp", "")
-        if ts:
-            ts = ts.split("T")[1][:8] if "T" in ts else ts
-        header = f"[{role}] {ts}"
-        lines.append(header)
+        role = msg["role"]
         text = msg["text"]
-        # Truncate very long messages
-        if len(text) > 2000:
-            text = text[:2000] + "\n... (truncated)"
-        lines.append(text)
+
+        ts = msg.get("timestamp", "")
+        ts_prefix = ""
+        if ts and "T" in ts:
+            ts_prefix = ts.split("T")[1][:5] + " "  # HH:MM
+
+        if role == "tool":
+            lines.append(f"[Tool] {text}")
+        elif role == "user":
+            if len(text) > 1000:
+                text = text[:1000] + "\n... (truncated)"
+            lines.append(f"{ts_prefix}[User] {text}")
+        elif role == "assistant":
+            if len(text) > 2000:
+                text = text[:2000] + "\n... (truncated)"
+            lines.append(f"[Assistant] {text}")
+
+        lines.append("")
+
+    if modified_files:
+        lines.append("[Files Modified]")
+        for f in modified_files:
+            lines.append(f"- {f}")
         lines.append("")
 
     output = "\n".join(lines)
@@ -337,7 +383,8 @@ if __name__ == "__main__":
 
     elif args.command == "transcript":
         data = session_summary_data(args.session)
-        print(format_condensed_transcript(data["messages"], args.max_lines))
+        print(format_condensed_transcript(data["messages"], args.max_lines,
+                                          data["modified_files"]))
 
     elif args.command == "files":
         entries = parse_jsonl(args.session)
