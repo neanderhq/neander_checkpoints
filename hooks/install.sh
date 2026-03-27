@@ -117,47 +117,48 @@ done
 mkdir -p "$HOOKS_TARGET"
 HOOKS_TEMPLATE="$SELF_DIR/hooks_config.json"
 
-# Replace placeholder with actual scripts dir
-HOOKS_JSON="$(sed "s|__SCRIPTS_DIR__|$SCRIPTS_DIR|g" "$HOOKS_TEMPLATE")"
+# Create a temp file with the scripts dir substituted
+HOOKS_TMPFILE="$(mktemp)"
+sed "s|__SCRIPTS_DIR__|$SCRIPTS_DIR|g" "$HOOKS_TEMPLATE" > "$HOOKS_TMPFILE"
+trap "rm -f '$HOOKS_TMPFILE'" EXIT
 
-if [ -f "$HOOKS_SETTINGS" ]; then
-    python3 -c "
-import json, sys
+python3 - "$HOOKS_TMPFILE" "$HOOKS_SETTINGS" <<'PYEOF'
+import json, sys, os
 
-with open('$HOOKS_SETTINGS') as f:
-    settings = json.load(f)
+hooks_file = sys.argv[1]
+settings_file = sys.argv[2]
 
-new_hooks = json.loads('''$HOOKS_JSON''')['hooks']
-existing_hooks = settings.get('hooks', {})
+with open(hooks_file) as f:
+    new_hooks = json.load(f)["hooks"]
+
+if os.path.exists(settings_file):
+    with open(settings_file) as f:
+        settings = json.load(f)
+    action = "merge"
+else:
+    settings = {}
+    action = "create"
+
+existing_hooks = settings.get("hooks", {})
 
 for event, handlers in new_hooks.items():
     if event not in existing_hooks:
         existing_hooks[event] = handlers
     else:
-        existing_cmds = {h.get('hooks', [{}])[0].get('command', '') for h in existing_hooks[event]}
+        existing_cmds = {h.get("hooks", [{}])[0].get("command", "") for h in existing_hooks[event]}
         for handler in handlers:
-            cmd = handler.get('hooks', [{}])[0].get('command', '')
+            cmd = handler.get("hooks", [{}])[0].get("command", "")
             if cmd not in existing_cmds:
                 existing_hooks[event].append(handler)
 
-settings['hooks'] = existing_hooks
+settings["hooks"] = existing_hooks
 
-with open('$HOOKS_SETTINGS', 'w') as f:
+with open(settings_file, "w") as f:
     json.dump(settings, f, indent=2)
-    f.write('\n')
+    f.write("\n")
 
-print('  [merge] hooks merged into $HOOKS_SETTINGS')
-"
-else
-    echo "$HOOKS_JSON" | python3 -c "
-import json, sys
-data = json.load(sys.stdin)
-with open('$HOOKS_SETTINGS', 'w') as f:
-    json.dump(data, f, indent=2)
-    f.write('\n')
-print('  [create] $HOOKS_SETTINGS')
-"
-fi
+print(f"  [{action}] hooks into {settings_file}")
+PYEOF
 
 # --- Install git pre-push hook (only if we have a git target) ---
 if [ -n "$GIT_TARGET" ]; then
