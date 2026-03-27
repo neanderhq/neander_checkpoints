@@ -79,21 +79,38 @@ case "$MODE" in
         else
             PROJECT_TARGET="$(cd "$PROJECT_TARGET" && pwd)"
         fi
-        COMMANDS_TARGET="$GLOBAL_CLAUDE_DIR/commands"
+        COMMANDS_TARGET="$PROJECT_TARGET/.claude/commands"
         HOOKS_TARGET="$PROJECT_TARGET/.claude"
         HOOKS_SETTINGS="$HOOKS_TARGET/settings.json"
         GIT_TARGET="$PROJECT_TARGET"
         echo "Installing neander_code_sessions into: $PROJECT_TARGET"
-        echo "  Commands → $COMMANDS_TARGET (global)"
+        echo "  Commands → $COMMANDS_TARGET"
         echo "  Hooks    → $HOOKS_SETTINGS"
         ;;
 esac
 
-echo "  Scripts  → $SCRIPTS_DIR"
-echo ""
+# --- Copy scripts into target ---
+case "$MODE" in
+    project)
+        SCRIPTS_TARGET="$PROJECT_TARGET/.claude/scripts"
+        ;;
+    global)
+        SCRIPTS_TARGET="$GLOBAL_CLAUDE_DIR/scripts"
+        ;;
+esac
 
-# --- Make scripts executable ---
-chmod +x "$SCRIPTS_DIR"/*.sh "$SCRIPTS_DIR"/*.py
+mkdir -p "$SCRIPTS_TARGET"
+for script in "$SCRIPTS_DIR"/*; do
+    name="$(basename "$script")"
+    cp "$script" "$SCRIPTS_TARGET/$name"
+    chmod +x "$SCRIPTS_TARGET/$name"
+    echo "  [copy] scripts/$name"
+done
+
+# Commands and hooks reference the installed scripts location
+INSTALLED_SCRIPTS_DIR="$SCRIPTS_TARGET"
+echo "  Scripts  → $INSTALLED_SCRIPTS_DIR"
+echo ""
 
 # --- Install commands (copy with path substitution) ---
 mkdir -p "$COMMANDS_TARGET"
@@ -103,7 +120,7 @@ for cmd in "$COMMANDS_SRC"/*.md; do
     target_file="$COMMANDS_TARGET/$name"
     # Remove old symlinks from previous installs
     [ -L "$target_file" ] && rm "$target_file"
-    sed "s|__SCRIPTS_DIR__|$SCRIPTS_DIR|g" "$cmd" > "$target_file"
+    sed "s|__SCRIPTS_DIR__|$INSTALLED_SCRIPTS_DIR|g" "$cmd" > "$target_file"
     echo "  [copy] commands/$name"
 done
 
@@ -113,7 +130,7 @@ HOOKS_TEMPLATE="$SELF_DIR/hooks_config.json"
 
 # Create a temp file with the scripts dir substituted
 HOOKS_TMPFILE="$(mktemp)"
-sed "s|__SCRIPTS_DIR__|$SCRIPTS_DIR|g" "$HOOKS_TEMPLATE" > "$HOOKS_TMPFILE"
+sed "s|__SCRIPTS_DIR__|$INSTALLED_SCRIPTS_DIR|g" "$HOOKS_TEMPLATE" > "$HOOKS_TMPFILE"
 trap "rm -f '$HOOKS_TMPFILE'" EXIT
 
 python3 - "$HOOKS_TMPFILE" "$HOOKS_SETTINGS" <<'PYEOF'
@@ -164,7 +181,7 @@ if [ -n "$GIT_TARGET" ]; then
 
         REDACT_HOOK='#!/usr/bin/env bash
 # Auto-redact session transcripts before push [neander_code_sessions]
-SCRIPTS_DIR="'"$SCRIPTS_DIR"'"
+SCRIPTS_DIR="'"$INSTALLED_SCRIPTS_DIR"'"
 CHECKPOINT_BRANCH="claude-sessions/checkpoints"
 
 while read local_ref local_sha remote_ref remote_sha; do

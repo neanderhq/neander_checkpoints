@@ -35,10 +35,12 @@ Then install into a project:
 ./hooks/install.sh --global
 ```
 
-| Mode | Commands | Hooks | Pre-push |
-|---|---|---|---|
-| `/path/to/project` | `~/.claude/commands/` | `<path>/.claude/settings.json` | `<path>/.git/hooks/` |
-| `--global` | `~/.claude/commands/` | `~/.claude/settings.json` | skipped |
+This copies scripts, commands, and hooks into the target project's `.claude/` directory so everything is self-contained and works for anyone who clones the repo.
+
+| Mode | Scripts | Commands | Hooks | Pre-push |
+|---|---|---|---|---|
+| `/path/to/project` | `<path>/.claude/scripts/` | `<path>/.claude/commands/` | `<path>/.claude/settings.json` | `<path>/.git/hooks/` |
+| `--global` | `~/.claude/scripts/` | `~/.claude/commands/` | `~/.claude/settings.json` | skipped |
 
 ## Uninstall
 

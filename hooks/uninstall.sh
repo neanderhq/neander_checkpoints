@@ -65,15 +65,30 @@ case "$MODE" in
         else
             PROJECT_TARGET="$(cd "$PROJECT_TARGET" && pwd)"
         fi
-        COMMANDS_TARGET="$GLOBAL_CLAUDE_DIR/commands"
+        COMMANDS_TARGET="$PROJECT_TARGET/.claude/commands"
         HOOKS_SETTINGS="$PROJECT_TARGET/.claude/settings.json"
         GIT_TARGET="$PROJECT_TARGET"
         echo "Uninstalling neander_code_sessions from: $PROJECT_TARGET"
-        echo "  Commands ← $COMMANDS_TARGET (global)"
+        echo "  Commands ← $COMMANDS_TARGET"
         echo "  Hooks    ← $HOOKS_SETTINGS"
         ;;
 esac
 echo ""
+
+# --- Remove installed scripts ---
+case "$MODE" in
+    project)
+        SCRIPTS_TARGET="$PROJECT_TARGET/.claude/scripts"
+        ;;
+    global)
+        SCRIPTS_TARGET="$GLOBAL_CLAUDE_DIR/scripts"
+        ;;
+esac
+
+if [ -d "$SCRIPTS_TARGET" ]; then
+    rm -rf "$SCRIPTS_TARGET"
+    echo "  [remove] scripts/"
+fi
 
 # --- Remove installed commands ---
 for cmd in "$COMMANDS_SRC"/*.md; do
