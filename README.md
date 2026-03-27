@@ -40,12 +40,18 @@ All session commands accept arguments to target different sessions:
 
 [Assistant] Both fixes are done.
 
+12:30 [User] Can we also handle the edge case for...
+
+[Assistant] Good catch, I'll add validation.
+
+[Tool] Edit: modules/chat/chat_websocket_handler.py
+
 [Files Modified]
 - modules/chat/chat_websocket_handler.py
 - modules/chat/repositories/message_repository.py
 ```
 
-Date separators only appear when the day changes (useful for overnight sessions). Timestamps on `[User]` entries only. Tool results are omitted — only tool calls with a one-line detail.
+Date separators only appear when the day changes (useful for overnight sessions). Timestamps on every `[User]` entry. Tool results are omitted — only tool calls with a one-line detail.
 
 ## Hooks
 
