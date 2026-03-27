@@ -3,25 +3,18 @@
 # install.sh — Install neander_code_sessions hooks and commands.
 #
 # Usage:
-#   ./hooks/install.sh                          # default: commands global, hooks into cwd project
-#   ./hooks/install.sh --global                 # commands + hooks both global
-#   ./hooks/install.sh --project /path/to/proj  # commands + hooks both into project
-#   ./hooks/install.sh --project .              # commands + hooks into current dir
+#   ./hooks/install.sh /path/to/project   # commands global, hooks + pre-push into project
+#   ./hooks/install.sh --global           # commands + hooks both global, no pre-push
 #
-# Default behavior (no flags):
+# Default (with path):
 #   - Commands → ~/.claude/commands/  (available everywhere)
-#   - Hooks    → <project>/.claude/settings.json  (opt-in per repo)
-#   - Pre-push → <project>/.git/hooks/pre-push
+#   - Hooks    → <path>/.claude/settings.json  (opt-in per repo)
+#   - Pre-push → <path>/.git/hooks/pre-push
 #
 # --global:
 #   - Commands → ~/.claude/commands/
 #   - Hooks    → ~/.claude/settings.json
 #   - Pre-push skipped (makes no sense globally)
-#
-# --project <path>:
-#   - Commands → <path>/.claude/commands/
-#   - Hooks    → <path>/.claude/settings.json
-#   - Pre-push → <path>/.git/hooks/pre-push
 #
 
 set -euo pipefail
@@ -32,7 +25,7 @@ SCRIPTS_DIR="$PROJECT_ROOT/scripts"
 COMMANDS_SRC="$PROJECT_ROOT/.claude/commands"
 
 GLOBAL_CLAUDE_DIR="$HOME/.claude"
-MODE="default"
+MODE=""
 PROJECT_TARGET=""
 
 # --- Parse args ---
@@ -42,37 +35,39 @@ while [[ $# -gt 0 ]]; do
             MODE="global"
             shift
             ;;
-        --project)
-            MODE="project"
-            PROJECT_TARGET="${2:?--project requires a path}"
-            shift 2
+        -h|--help)
+            echo "Usage:"
+            echo "  ./hooks/install.sh /path/to/project   # commands global, hooks into project"
+            echo "  ./hooks/install.sh --global           # everything global"
+            exit 0
             ;;
         *)
-            # Legacy: positional arg = project path
-            MODE="project"
             PROJECT_TARGET="$1"
             shift
             ;;
     esac
 done
 
+# --- Validate args ---
+if [ -z "$MODE" ] && [ -z "$PROJECT_TARGET" ]; then
+    echo "Usage:"
+    echo "  ./hooks/install.sh /path/to/project   # commands global, hooks into project"
+    echo "  ./hooks/install.sh --global           # everything global"
+    exit 1
+fi
+
+if [ -z "$MODE" ]; then
+    MODE="project"
+fi
+
 # --- Resolve targets based on mode ---
 case "$MODE" in
-    default)
-        COMMANDS_TARGET="$GLOBAL_CLAUDE_DIR/commands"
-        HOOKS_TARGET="$(pwd)/.claude"
-        HOOKS_SETTINGS="$HOOKS_TARGET/settings.json"
-        GIT_TARGET="$(pwd)"
-        echo "Installing neander_code_sessions (default mode):"
-        echo "  Commands → $COMMANDS_TARGET (global)"
-        echo "  Hooks    → $HOOKS_SETTINGS (project)"
-        ;;
     global)
         COMMANDS_TARGET="$GLOBAL_CLAUDE_DIR/commands"
         HOOKS_TARGET="$GLOBAL_CLAUDE_DIR"
         HOOKS_SETTINGS="$HOOKS_TARGET/settings.json"
         GIT_TARGET=""
-        echo "Installing neander_code_sessions (global mode):"
+        echo "Installing neander_code_sessions (global):"
         echo "  Commands → $COMMANDS_TARGET"
         echo "  Hooks    → $HOOKS_SETTINGS"
         echo "  Pre-push → skipped (global mode)"
@@ -84,12 +79,12 @@ case "$MODE" in
         else
             PROJECT_TARGET="$(cd "$PROJECT_TARGET" && pwd)"
         fi
-        COMMANDS_TARGET="$PROJECT_TARGET/.claude/commands"
+        COMMANDS_TARGET="$GLOBAL_CLAUDE_DIR/commands"
         HOOKS_TARGET="$PROJECT_TARGET/.claude"
         HOOKS_SETTINGS="$HOOKS_TARGET/settings.json"
         GIT_TARGET="$PROJECT_TARGET"
-        echo "Installing neander_code_sessions (project mode):"
-        echo "  Commands → $COMMANDS_TARGET"
+        echo "Installing neander_code_sessions into: $PROJECT_TARGET"
+        echo "  Commands → $COMMANDS_TARGET (global)"
         echo "  Hooks    → $HOOKS_SETTINGS"
         ;;
 esac

@@ -3,9 +3,8 @@
 # uninstall.sh — Remove neander_code_sessions hooks and commands.
 #
 # Usage:
-#   ./hooks/uninstall.sh                          # default: commands from global, hooks from cwd
-#   ./hooks/uninstall.sh --global                 # commands + hooks from global
-#   ./hooks/uninstall.sh --project /path/to/proj  # commands + hooks from project
+#   ./hooks/uninstall.sh /path/to/project   # commands from global, hooks from project
+#   ./hooks/uninstall.sh --global           # commands + hooks from global
 #
 
 set -euo pipefail
@@ -15,7 +14,7 @@ PROJECT_ROOT="$(cd "$SELF_DIR/.." && pwd)"
 COMMANDS_SRC="$PROJECT_ROOT/.claude/commands"
 
 GLOBAL_CLAUDE_DIR="$HOME/.claude"
-MODE="default"
+MODE=""
 PROJECT_TARGET=""
 
 # --- Parse args ---
@@ -25,34 +24,38 @@ while [[ $# -gt 0 ]]; do
             MODE="global"
             shift
             ;;
-        --project)
-            MODE="project"
-            PROJECT_TARGET="${2:?--project requires a path}"
-            shift 2
+        -h|--help)
+            echo "Usage:"
+            echo "  ./hooks/uninstall.sh /path/to/project   # commands from global, hooks from project"
+            echo "  ./hooks/uninstall.sh --global           # everything from global"
+            exit 0
             ;;
         *)
-            MODE="project"
             PROJECT_TARGET="$1"
             shift
             ;;
     esac
 done
 
+# --- Validate args ---
+if [ -z "$MODE" ] && [ -z "$PROJECT_TARGET" ]; then
+    echo "Usage:"
+    echo "  ./hooks/uninstall.sh /path/to/project   # commands from global, hooks from project"
+    echo "  ./hooks/uninstall.sh --global           # everything from global"
+    exit 1
+fi
+
+if [ -z "$MODE" ]; then
+    MODE="project"
+fi
+
 # --- Resolve targets ---
 case "$MODE" in
-    default)
-        COMMANDS_TARGET="$GLOBAL_CLAUDE_DIR/commands"
-        HOOKS_SETTINGS="$(pwd)/.claude/settings.json"
-        GIT_TARGET="$(pwd)"
-        echo "Uninstalling neander_code_sessions (default mode):"
-        echo "  Commands ← $COMMANDS_TARGET (global)"
-        echo "  Hooks    ← $HOOKS_SETTINGS (project)"
-        ;;
     global)
         COMMANDS_TARGET="$GLOBAL_CLAUDE_DIR/commands"
         HOOKS_SETTINGS="$GLOBAL_CLAUDE_DIR/settings.json"
         GIT_TARGET=""
-        echo "Uninstalling neander_code_sessions (global mode):"
+        echo "Uninstalling neander_code_sessions (global):"
         echo "  Commands ← $COMMANDS_TARGET"
         echo "  Hooks    ← $HOOKS_SETTINGS"
         ;;
@@ -62,11 +65,11 @@ case "$MODE" in
         else
             PROJECT_TARGET="$(cd "$PROJECT_TARGET" && pwd)"
         fi
-        COMMANDS_TARGET="$PROJECT_TARGET/.claude/commands"
+        COMMANDS_TARGET="$GLOBAL_CLAUDE_DIR/commands"
         HOOKS_SETTINGS="$PROJECT_TARGET/.claude/settings.json"
         GIT_TARGET="$PROJECT_TARGET"
-        echo "Uninstalling neander_code_sessions (project mode):"
-        echo "  Commands ← $COMMANDS_TARGET"
+        echo "Uninstalling neander_code_sessions from: $PROJECT_TARGET"
+        echo "  Commands ← $COMMANDS_TARGET (global)"
         echo "  Hooks    ← $HOOKS_SETTINGS"
         ;;
 esac

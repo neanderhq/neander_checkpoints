@@ -28,26 +28,18 @@ hooks/            — Installation and config
 
 ## Installation
 
-Three modes:
-
 ```bash
-# Default: commands go global (~/.claude/commands/), hooks go into current project
-./hooks/install.sh
+# Commands go global, hooks scoped to target project
+./hooks/install.sh /path/to/project
 
-# Global: everything into ~/.claude/ (commands available everywhere, hooks fire in all sessions)
+# Or everything global
 ./hooks/install.sh --global
-
-# Project-only: everything into a specific project
-./hooks/install.sh --project /path/to/project
 ```
 
-**Recommended**: default mode. Commands are always available, hooks only checkpoint in repos you care about.
-
-Uninstall with matching flags:
+Uninstall:
 ```bash
-./hooks/uninstall.sh              # undo default install
-./hooks/uninstall.sh --global     # undo global install
-./hooks/uninstall.sh --project /path/to/project
+./hooks/uninstall.sh /path/to/project
+./hooks/uninstall.sh --global
 ```
 
 ## Slash commands

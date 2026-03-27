@@ -25,31 +25,26 @@ git clone <this-repo> ~/checkouts/neander_code_sessions
 cd ~/checkouts/neander_code_sessions
 ```
 
-Then pick an install mode:
+Then install into a project:
 
 ```bash
-# Recommended: commands available globally, hooks scoped to current project
-./hooks/install.sh
+# Commands go global (~/.claude/commands/), hooks scoped to the target project
+./hooks/install.sh /path/to/project
 
-# Everything global (hooks fire in all sessions)
+# Or everything global (hooks fire in all sessions)
 ./hooks/install.sh --global
-
-# Everything scoped to one project
-./hooks/install.sh --project /path/to/project
 ```
 
 | Mode | Commands | Hooks | Pre-push |
 |---|---|---|---|
-| default | `~/.claude/commands/` | `<cwd>/.claude/settings.json` | `<cwd>/.git/hooks/` |
+| `/path/to/project` | `~/.claude/commands/` | `<path>/.claude/settings.json` | `<path>/.git/hooks/` |
 | `--global` | `~/.claude/commands/` | `~/.claude/settings.json` | skipped |
-| `--project` | `<path>/.claude/commands/` | `<path>/.claude/settings.json` | `<path>/.git/hooks/` |
 
 ## Uninstall
 
 ```bash
-./hooks/uninstall.sh              # undo default
-./hooks/uninstall.sh --global     # undo global
-./hooks/uninstall.sh --project /path/to/project
+./hooks/uninstall.sh /path/to/project
+./hooks/uninstall.sh --global
 ```
 
 ## Standalone CLI usage
@@ -134,7 +129,7 @@ scripts/
 
 hooks/
   hooks_config.json   Hook definitions template
-  install.sh          Installer (3 modes)
+  install.sh          Installer (project or global)
   uninstall.sh        Clean removal
 ```
 
