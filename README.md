@@ -30,7 +30,7 @@ All session commands accept arguments to target different sessions:
 
 12:21 [User] Implement the following plan...
 
-[Assistant] I'll read both files in parallel.
+12:21 [Assistant] I'll read both files in parallel.
 
 [Tool] Read: modules/chat/chat_websocket_handler.py
 
@@ -38,11 +38,11 @@ All session commands accept arguments to target different sessions:
 
 [Tool] Bash: Run chat module tests
 
-[Assistant] Both fixes are done.
+12:22 [Assistant] Both fixes are done.
 
 12:30 [User] Can we also handle the edge case for...
 
-[Assistant] Good catch, I'll add validation.
+12:30 [Assistant] Good catch, I'll add validation.
 
 [Tool] Edit: modules/chat/chat_websocket_handler.py
 
@@ -51,7 +51,7 @@ All session commands accept arguments to target different sessions:
 - modules/chat/repositories/message_repository.py
 ```
 
-Date separators only appear when the day changes (useful for overnight sessions). Timestamps on every `[User]` entry. Tool results are omitted — only tool calls with a one-line detail.
+Date separators only appear when the day changes (useful for overnight sessions). Timestamps on `[User]` and `[Assistant]` entries. Tool results are omitted — only tool calls with a one-line detail.
 
 ## Hooks
 

@@ -296,7 +296,7 @@ def format_condensed_transcript(messages: list[dict], max_lines: int = None,
         elif role == "assistant":
             if len(text) > 2000:
                 text = text[:2000] + "\n... (truncated)"
-            lines.append(f"[Assistant] {text}")
+            lines.append(f"{ts_prefix}[Assistant] {text}")
 
         lines.append("")
 
