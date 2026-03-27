@@ -6,12 +6,22 @@ Session management for Claude Code — checkpoints, summaries, redaction, and re
 
 Claude Code stores every session as a JSONL transcript under `~/.claude/projects/`. This toolkit turns those raw transcripts into something useful:
 
-- `/summarize` — AI-generated summary of any session (intent, outcome, key decisions, open items)
+- `/summarize` — AI-generated summary (intent, outcome, key decisions, open items)
 - `/transcript` — Clean, condensed transcript view stripped of noise
 - `/session-stats` — Token usage, estimated cost, duration, files modified
 - `/rewind` — List checkpoints and restore files to a previous state
 - `/resume` — Find and resume a session from a checkpoint (even cross-machine)
 - `/redact` — Scan transcripts for secrets and PII before sharing
+
+All session commands accept arguments to target different sessions:
+
+```
+/transcript                  # current session
+/transcript current          # current session (explicit)
+/transcript list             # list all sessions, pick one
+/transcript <session-id>     # specific session by ID
+/transcript <path/to/file>   # specific session by file path
+```
 
 Automatic hooks handle:
 - **Checkpointing** — saves transcript + metadata to a git orphan branch on every commit and on session stop, so you never lose context
@@ -28,19 +38,21 @@ cd ~/checkouts/neander_code_sessions
 Then install into a project:
 
 ```bash
-# Commands go global (~/.claude/commands/), hooks scoped to the target project
+# Install into a project — copies scripts, commands, hooks, and permissions
 ./hooks/install.sh /path/to/project
 
 # Or everything global (hooks fire in all sessions)
 ./hooks/install.sh --global
 ```
 
-This copies scripts, commands, and hooks into the target project's `.claude/` directory so everything is self-contained and works for anyone who clones the repo.
+This copies everything into the target project's `.claude/` directory so it's self-contained — anyone who clones the repo gets the commands working out of the box.
 
-| Mode | Scripts | Commands | Hooks | Pre-push |
+| | Scripts | Commands | Hooks + Permissions | Pre-push |
 |---|---|---|---|---|
 | `/path/to/project` | `<path>/.claude/scripts/` | `<path>/.claude/commands/` | `<path>/.claude/settings.json` | `<path>/.git/hooks/` |
 | `--global` | `~/.claude/scripts/` | `~/.claude/commands/` | `~/.claude/settings.json` | skipped |
+
+The installer also adds permission rules to `settings.json` so the scripts run without approval prompts.
 
 ## Uninstall
 
