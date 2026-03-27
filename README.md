@@ -14,7 +14,7 @@ Claude Code stores every session as a JSONL transcript under `~/.claude/projects
 - `/redact` — Scan transcripts for secrets and PII before sharing
 
 Automatic hooks handle:
-- **Checkpointing** — on session stop, saves transcript + metadata to a git orphan branch
+- **Checkpointing** — saves transcript + metadata to a git orphan branch on every commit and on session stop, so you never lose context
 - **Commit linking** — adds `Claude-Session` trailers to commits so you can trace code back to the AI conversation that wrote it
 - **Pre-push redaction** — strips secrets from transcripts before they leave your machine
 
@@ -95,7 +95,19 @@ Claude Code sessions are stored as JSONL files with 6 object types:
 | `queue-operation` | Messages queued while Claude was busy |
 | `system` | Turn duration and metadata |
 
-The parser extracts structured data from these: messages, tool calls, token usage (deduplicated), modified files, and file snapshots. The checkpoint system stores this on a `claude-sessions/checkpoints` orphan branch with sharded directories for scalability.
+The parser extracts structured data from these: messages, tool calls, token usage (deduplicated), modified files, and file snapshots.
+
+### Checkpointing
+
+The checkpoint system stores transcripts on a `claude-sessions/checkpoints` orphan branch — a branch with no shared history with your code, so it never pollutes your working tree. Checkpoints are created at two points:
+
+1. **Every git commit** (`PostToolUse:Bash` hook) — detects `git commit` in tool output, links the commit via a `Claude-Session` trailer, and snapshots the transcript in the background
+2. **Session end** (`Stop` hook) — catch-all that ensures every session is captured even if no commits were made
+
+Checkpoints are stored in sharded directories (`<id[:2]>/<id[2:]>/`) for scalability, each containing:
+- `transcript.jsonl` — full session transcript
+- `metadata.json` — session ID, commit SHA, token stats, timestamps
+- `condensed.txt` — human-readable summary
 
 Secret redaction uses three layers:
 1. **Shannon entropy** — flags high-entropy strings (threshold 4.5, min 16 chars)
@@ -110,7 +122,7 @@ scripts/
   checkpoint.sh       Save session to git orphan branch
   redact.py           3-layer secret redaction
   link_commit.sh      Add Claude-Session trailer to commits
-  detect_commit.sh    Hook: detect git commit, trigger linking
+  detect_commit.sh    Hook: detect git commit, trigger linking + checkpoint
 
 .claude/commands/
   summarize.md        /summarize slash command
