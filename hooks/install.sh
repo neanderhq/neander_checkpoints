@@ -133,11 +133,12 @@ HOOKS_TMPFILE="$(mktemp)"
 sed "s|__SCRIPTS_DIR__|$INSTALLED_SCRIPTS_DIR|g" "$HOOKS_TEMPLATE" > "$HOOKS_TMPFILE"
 trap "rm -f '$HOOKS_TMPFILE'" EXIT
 
-python3 - "$HOOKS_TMPFILE" "$HOOKS_SETTINGS" <<'PYEOF'
+python3 - "$HOOKS_TMPFILE" "$HOOKS_SETTINGS" "$INSTALLED_SCRIPTS_DIR" <<'PYEOF'
 import json, sys, os
 
 hooks_file = sys.argv[1]
 settings_file = sys.argv[2]
+scripts_dir = sys.argv[3]
 
 with open(hooks_file) as f:
     new_hooks = json.load(f)["hooks"]
@@ -150,6 +151,7 @@ else:
     settings = {}
     action = "create"
 
+# --- Merge hooks ---
 existing_hooks = settings.get("hooks", {})
 
 for event, handlers in new_hooks.items():
@@ -164,11 +166,34 @@ for event, handlers in new_hooks.items():
 
 settings["hooks"] = existing_hooks
 
+# --- Merge permissions ---
+new_permissions = [
+    f"Bash(python3 {scripts_dir}/parse_jsonl.py*)",
+    f"Bash(python3 {scripts_dir}/redact.py*)",
+    f"Bash(bash {scripts_dir}/checkpoint.sh*)",
+    f"Bash(bash {scripts_dir}/detect_commit.sh*)",
+    f"Bash(bash {scripts_dir}/link_commit.sh*)",
+]
+
+permissions = settings.get("permissions", {})
+allow = permissions.get("allow", [])
+added = 0
+for perm in new_permissions:
+    if perm not in allow:
+        allow.append(perm)
+        added += 1
+permissions["allow"] = allow
+settings["permissions"] = permissions
+
 with open(settings_file, "w") as f:
     json.dump(settings, f, indent=2)
     f.write("\n")
 
 print(f"  [{action}] hooks into {settings_file}")
+if added:
+    print(f"  [add] {added} permission rules")
+else:
+    print(f"  [skip] permissions already present")
 PYEOF
 
 # --- Install git pre-push hook (only if we have a git target) ---
