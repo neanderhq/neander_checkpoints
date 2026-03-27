@@ -272,6 +272,7 @@ def format_condensed_transcript(messages: list[dict], max_lines: int = None,
                                 modified_files: list[str] = None) -> str:
     """Format messages into Entire-style condensed transcript."""
     lines = []
+    current_date = None
     for msg in messages:
         role = msg["role"]
         text = msg["text"]
@@ -279,6 +280,11 @@ def format_condensed_transcript(messages: list[dict], max_lines: int = None,
         ts = msg.get("timestamp", "")
         ts_prefix = ""
         if ts and "T" in ts:
+            date_part = ts.split("T")[0]  # YYYY-MM-DD
+            if date_part != current_date:
+                current_date = date_part
+                lines.append(f"--- {date_part} ---")
+                lines.append("")
             ts_prefix = ts.split("T")[1][:5] + " "  # HH:MM
 
         if role == "tool":
