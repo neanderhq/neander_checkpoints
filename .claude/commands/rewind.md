@@ -16,7 +16,7 @@ List available checkpoints and optionally restore files to a previous state.
 
 3. Also check file-history-snapshots in the session JSONL:
    ```
-   python3 scripts/parse_jsonl.py snapshots --session <path>
+   python3 __SCRIPTS_DIR__/parse_jsonl.py snapshots --session <path>
    ```
 
 4. Present the checkpoints to the user with timestamps and associated commits.

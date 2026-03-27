@@ -75,15 +75,13 @@ case "$MODE" in
 esac
 echo ""
 
-# --- Remove symlinked commands ---
+# --- Remove installed commands ---
 for cmd in "$COMMANDS_SRC"/*.md; do
     name="$(basename "$cmd")"
     target_file="$COMMANDS_TARGET/$name"
-    if [ -L "$target_file" ]; then
+    if [ -f "$target_file" ]; then
         rm "$target_file"
         echo "  [remove] commands/$name"
-    elif [ -f "$target_file" ]; then
-        echo "  [skip] commands/$name is not a symlink (manually created?)"
     fi
 done
 

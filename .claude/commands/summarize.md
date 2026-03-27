@@ -6,18 +6,18 @@ Read the session transcript and provide a structured summary.
 
 1. Find the most recent session JSONL file by running:
    ```
-   python3 scripts/parse_jsonl.py list --project "$(pwd)"
+   python3 __SCRIPTS_DIR__/parse_jsonl.py list --project "$(pwd)"
    ```
    If the user provided a session ID or path, use that instead.
 
 2. Parse the session to get stats:
    ```
-   python3 scripts/parse_jsonl.py stats --session <path>
+   python3 __SCRIPTS_DIR__/parse_jsonl.py stats --session <path>
    ```
 
 3. Get the condensed transcript:
    ```
-   python3 scripts/parse_jsonl.py transcript --session <path> --max-lines 200
+   python3 __SCRIPTS_DIR__/parse_jsonl.py transcript --session <path> --max-lines 200
    ```
 
 4. Read the condensed transcript and produce a summary with this structure:

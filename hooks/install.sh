@@ -95,22 +95,16 @@ echo ""
 # --- Make scripts executable ---
 chmod +x "$SCRIPTS_DIR"/*.sh "$SCRIPTS_DIR"/*.py
 
-# --- Install commands (symlink) ---
+# --- Install commands (copy with path substitution) ---
 mkdir -p "$COMMANDS_TARGET"
 
 for cmd in "$COMMANDS_SRC"/*.md; do
     name="$(basename "$cmd")"
     target_file="$COMMANDS_TARGET/$name"
-    if [ -e "$target_file" ] && [ ! -L "$target_file" ]; then
-        echo "  [skip] commands/$name already exists (not a symlink, won't overwrite)"
-    elif [ -L "$target_file" ]; then
-        # Update existing symlink
-        ln -sf "$cmd" "$target_file"
-        echo "  [update] commands/$name"
-    else
-        ln -sf "$cmd" "$target_file"
-        echo "  [link] commands/$name"
-    fi
+    # Remove old symlinks from previous installs
+    [ -L "$target_file" ] && rm "$target_file"
+    sed "s|__SCRIPTS_DIR__|$SCRIPTS_DIR|g" "$cmd" > "$target_file"
+    echo "  [copy] commands/$name"
 done
 
 # --- Install hooks ---

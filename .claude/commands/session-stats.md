@@ -6,17 +6,17 @@ Show token usage, message counts, duration, and file modification stats for a Cl
 
 1. If the user provided a session path, use it. Otherwise find recent sessions:
    ```
-   python3 scripts/parse_jsonl.py list --project "$(pwd)"
+   python3 __SCRIPTS_DIR__/parse_jsonl.py list --project "$(pwd)"
    ```
 
 2. Get full stats:
    ```
-   python3 scripts/parse_jsonl.py stats --session <path>
+   python3 __SCRIPTS_DIR__/parse_jsonl.py stats --session <path>
    ```
 
 3. Also get file snapshots for checkpoint info:
    ```
-   python3 scripts/parse_jsonl.py snapshots --session <path>
+   python3 __SCRIPTS_DIR__/parse_jsonl.py snapshots --session <path>
    ```
 
 4. Present the stats in a clear format. Include:
