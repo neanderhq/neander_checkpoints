@@ -268,9 +268,8 @@ def get_file_snapshots(entries: list[dict]) -> list[dict]:
     return snapshots
 
 
-def format_condensed_transcript(messages: list[dict], max_lines: int = None,
-                                modified_files: list[str] = None) -> str:
-    """Format messages into Entire-style condensed transcript."""
+def format_condensed_transcript(messages: list[dict], max_lines: int = None) -> str:
+    """Format messages into condensed transcript."""
     lines = []
     current_date = None
     for msg in messages:
@@ -298,12 +297,6 @@ def format_condensed_transcript(messages: list[dict], max_lines: int = None,
                 text = text[:2000] + "\n... (truncated)"
             lines.append(f"{ts_prefix}[Assistant] {text}")
 
-        lines.append("")
-
-    if modified_files:
-        lines.append("[Files Modified]")
-        for f in modified_files:
-            lines.append(f"- {f}")
         lines.append("")
 
     output = "\n".join(lines)
@@ -389,8 +382,7 @@ if __name__ == "__main__":
 
     elif args.command == "transcript":
         data = session_summary_data(args.session)
-        print(format_condensed_transcript(data["messages"], args.max_lines,
-                                          data["modified_files"]))
+        print(format_condensed_transcript(data["messages"], args.max_lines))
 
     elif args.command == "files":
         entries = parse_jsonl(args.session)

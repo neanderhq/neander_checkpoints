@@ -45,10 +45,6 @@ All session commands accept arguments to target different sessions:
 12:30 [Assistant] Good catch, I'll add validation.
 
 [Tool] Edit: modules/chat/chat_websocket_handler.py
-
-[Files Modified]
-- modules/chat/chat_websocket_handler.py
-- modules/chat/repositories/message_repository.py
 ```
 
 Date separators only appear when the day changes (useful for overnight sessions). Timestamps on `[User]` and `[Assistant]` entries. Tool results are omitted — only tool calls with a one-line detail.
