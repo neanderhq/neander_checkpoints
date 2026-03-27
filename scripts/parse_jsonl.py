@@ -17,15 +17,21 @@ from pathlib import Path
 CLAUDE_PROJECTS_DIR = Path.home() / ".claude" / "projects"
 
 
+def _encode_project_path(path: str) -> str:
+    """Encode a filesystem path the same way Claude Code does for project dir names."""
+    # Claude Code replaces / with - and _ with -
+    return path.replace("/", "-").replace("_", "-")
+
+
 def find_session_files(project_path: str = None) -> list[dict]:
     """Find all session JSONL files, optionally filtered by project path."""
     sessions = []
+    encoded_filter = _encode_project_path(project_path) if project_path else None
     for project_dir in CLAUDE_PROJECTS_DIR.iterdir():
         if not project_dir.is_dir():
             continue
-        if project_path:
-            decoded = project_dir.name.replace("-", "/", 1).replace("-", "/")
-            if project_path not in decoded and decoded not in project_path:
+        if encoded_filter:
+            if project_dir.name != encoded_filter:
                 continue
         for f in project_dir.glob("*.jsonl"):
             if f.stem == "memory" or f.name.startswith("."):
