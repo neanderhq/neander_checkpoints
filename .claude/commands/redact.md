@@ -6,7 +6,7 @@ Scan a session transcript for secrets and PII, then produce a redacted version.
 
 1. If the user provided a session path, use it. Otherwise find recent sessions:
    ```
-   python3 __SCRIPTS_DIR__/parse_jsonl.py list --project "$(pwd)"
+   python3 __SCRIPTS_DIR__/parse_jsonl.py list --project <current working directory>
    ```
 
 2. First do a dry-run check:

@@ -6,7 +6,7 @@ Show a clean, readable version of a Claude Code session transcript.
 
 1. If the user provided a session path, use it directly. Otherwise find recent sessions:
    ```
-   python3 __SCRIPTS_DIR__/parse_jsonl.py list --project "$(pwd)"
+   python3 __SCRIPTS_DIR__/parse_jsonl.py list --project <current working directory>
    ```
    Ask the user which session if multiple are found.
 

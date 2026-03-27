@@ -6,7 +6,7 @@ Find and prepare to resume a Claude Code session, optionally from a remote check
 
 1. List recent sessions:
    ```
-   python3 __SCRIPTS_DIR__/parse_jsonl.py list --project "$(pwd)"
+   python3 __SCRIPTS_DIR__/parse_jsonl.py list --project <current working directory>
    ```
 
 2. If the user specified a branch, check the checkpoint branch for sessions linked to that branch:

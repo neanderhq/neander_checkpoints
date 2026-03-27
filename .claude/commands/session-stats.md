@@ -6,7 +6,7 @@ Show token usage, message counts, duration, and file modification stats for a Cl
 
 1. If the user provided a session path, use it. Otherwise find recent sessions:
    ```
-   python3 __SCRIPTS_DIR__/parse_jsonl.py list --project "$(pwd)"
+   python3 __SCRIPTS_DIR__/parse_jsonl.py list --project <current working directory>
    ```
 
 2. Get full stats:

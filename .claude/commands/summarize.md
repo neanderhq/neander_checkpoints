@@ -6,7 +6,7 @@ Read the session transcript and provide a structured summary.
 
 1. Find the most recent session JSONL file by running:
    ```
-   python3 __SCRIPTS_DIR__/parse_jsonl.py list --project "$(pwd)"
+   python3 __SCRIPTS_DIR__/parse_jsonl.py list --project <current working directory>
    ```
    If the user provided a session ID or path, use that instead.
 
