@@ -7,7 +7,7 @@ Session management for Claude Code — checkpoints, summaries, redaction, and re
 Claude Code stores every session as a JSONL transcript under `~/.claude/projects/`. This toolkit turns those raw transcripts into something useful:
 
 - `/summarize` — AI-generated summary (intent, outcome, key decisions, open items)
-- `/transcript` — Clean, condensed transcript view stripped of noise
+- `/transcript` — Clean, condensed transcript view (see format below)
 - `/session-stats` — Token usage, estimated cost, duration, files modified
 - `/rewind` — List checkpoints and restore files to a previous state
 - `/resume` — Find and resume a session from a checkpoint (even cross-machine)
@@ -22,6 +22,32 @@ All session commands accept arguments to target different sessions:
 /transcript <session-id>     # specific session by ID
 /transcript <path/to/file>   # specific session by file path
 ```
+
+### Transcript format
+
+```
+--- 2026-03-22 ---
+
+12:21 [User] Implement the following plan...
+
+[Assistant] I'll read both files in parallel.
+
+[Tool] Read: modules/chat/chat_websocket_handler.py
+
+[Tool] Edit: modules/chat/chat_websocket_handler.py
+
+[Tool] Bash: Run chat module tests
+
+[Assistant] Both fixes are done.
+
+[Files Modified]
+- modules/chat/chat_websocket_handler.py
+- modules/chat/repositories/message_repository.py
+```
+
+Date separators only appear when the day changes (useful for overnight sessions). Timestamps on `[User]` entries only. Tool results are omitted — only tool calls with a one-line detail.
+
+## Hooks
 
 Automatic hooks handle:
 - **Checkpointing** — saves transcript + metadata to a git orphan branch on every commit and on session stop, so you never lose context
