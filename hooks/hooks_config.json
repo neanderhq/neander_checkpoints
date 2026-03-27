@@ -1,0 +1,26 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash __SCRIPTS_DIR__/checkpoint.sh \"$CLAUDE_SESSION_FILE\" 2>/dev/null || true"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash __SCRIPTS_DIR__/detect_commit.sh \"$CLAUDE_SESSION_ID\" 2>/dev/null || true"
+          }
+        ]
+      }
+    ]
+  }
+}
