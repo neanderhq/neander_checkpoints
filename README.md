@@ -1,6 +1,6 @@
 # neander_checkpoints
 
-Capture AI coding sessions alongside your Git history. Understand *why* code changed, not just *what*. Rewind when things go wrong. Resume where you left off — even on a different machine.
+Capture Claude Code sessions alongside your Git history. Understand *why* code changed, not just *what*. Rewind when things go wrong. Resume where you left off — even on a different machine.
 
 Built natively for Claude Code using hooks, skills, and scripts. No external binaries. Install once, works automatically.
 
