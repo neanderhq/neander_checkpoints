@@ -16,7 +16,7 @@ Show active and recent Claude Code sessions for the current project.
 
 3. Check if the checkpoint branch exists:
    ```
-   git rev-parse --verify claude-sessions/checkpoints 2>/dev/null
+   git rev-parse --verify neander/checkpoints/v1 2>/dev/null
    ```
 
 4. Display in this format:

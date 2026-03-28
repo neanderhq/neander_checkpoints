@@ -15,7 +15,7 @@
 
 set -euo pipefail
 
-CHECKPOINT_BRANCH="claude-sessions/checkpoints"
+CHECKPOINT_BRANCH="neander/checkpoints/v1"
 
 SESSION_ID="${1:?Usage: restore.sh <session_id> [project_path]}"
 PROJECT_PATH="${2:-$(pwd)}"
@@ -46,34 +46,44 @@ if ! git fetch origin "$CHECKPOINT_BRANCH" --quiet 2>/dev/null; then
     exit 1
 fi
 
-# Search for the session in the checkpoint branch
-# Checkpoints are stored as <shard>/<rest>/transcript.jsonl with metadata.json
+# Fast path: check index.log first
 echo "Searching for session $SESSION_ID..."
-
 FOUND=""
-for metadata in $(git ls-tree -r --name-only "origin/$CHECKPOINT_BRANCH" 2>/dev/null | grep "metadata.json"); do
-    # Read the metadata to check if it matches our session
-    CONTENT="$(git show "origin/$CHECKPOINT_BRANCH:$metadata" 2>/dev/null || true)"
-    if echo "$CONTENT" | grep -q "\"session_id\": \"$SESSION_ID\""; then
-        # Found it — get the directory
-        CHECKPOINT_DIR="$(dirname "$metadata")"
-        FOUND="$CHECKPOINT_DIR"
-        break
-    fi
-done
+TRANSCRIPT_FILE=""
 
-if [ -z "$FOUND" ]; then
-    # Also check the index.log for a faster lookup
-    INDEX="$(git show "origin/$CHECKPOINT_BRANCH:index.log" 2>/dev/null || true)"
-    MATCH="$(echo "$INDEX" | grep "$SESSION_ID" | tail -1 || true)"
-    if [ -n "$MATCH" ]; then
-        CHECKPOINT_ID="$(echo "$MATCH" | cut -d'|' -f1)"
-        SHARD_DIR="${CHECKPOINT_ID:0:2}/${CHECKPOINT_ID:2}"
-        # Verify the transcript exists
-        if git show "origin/$CHECKPOINT_BRANCH:$SHARD_DIR/transcript.jsonl" >/dev/null 2>&1; then
-            FOUND="$SHARD_DIR"
-        fi
+INDEX="$(git show "origin/$CHECKPOINT_BRANCH:index.log" 2>/dev/null || true)"
+MATCH="$(echo "$INDEX" | grep "$SESSION_ID" | tail -1 || true)"
+if [ -n "$MATCH" ]; then
+    CHECKPOINT_ID="$(echo "$MATCH" | cut -d'|' -f1)"
+    SHARD_DIR="${CHECKPOINT_ID:0:2}/${CHECKPOINT_ID:2}"
+    # New format: transcript-<session_id>.jsonl
+    if git show "origin/$CHECKPOINT_BRANCH:$SHARD_DIR/transcript-${SESSION_ID}.jsonl" >/dev/null 2>&1; then
+        FOUND="$SHARD_DIR"
+        TRANSCRIPT_FILE="transcript-${SESSION_ID}.jsonl"
+    # Legacy format: transcript.jsonl
+    elif git show "origin/$CHECKPOINT_BRANCH:$SHARD_DIR/transcript.jsonl" >/dev/null 2>&1; then
+        FOUND="$SHARD_DIR"
+        TRANSCRIPT_FILE="transcript.jsonl"
     fi
+fi
+
+# Slow path: walk metadata files
+if [ -z "$FOUND" ]; then
+    for metadata in $(git ls-tree -r --name-only "origin/$CHECKPOINT_BRANCH" 2>/dev/null | grep "metadata.json"); do
+        CONTENT="$(git show "origin/$CHECKPOINT_BRANCH:$metadata" 2>/dev/null || true)"
+        if echo "$CONTENT" | grep -q "$SESSION_ID"; then
+            CHECKPOINT_DIR="$(dirname "$metadata")"
+            # Check for namespaced transcript first, then legacy
+            if git show "origin/$CHECKPOINT_BRANCH:$CHECKPOINT_DIR/transcript-${SESSION_ID}.jsonl" >/dev/null 2>&1; then
+                FOUND="$CHECKPOINT_DIR"
+                TRANSCRIPT_FILE="transcript-${SESSION_ID}.jsonl"
+            elif git show "origin/$CHECKPOINT_BRANCH:$CHECKPOINT_DIR/transcript.jsonl" >/dev/null 2>&1; then
+                FOUND="$CHECKPOINT_DIR"
+                TRANSCRIPT_FILE="transcript.jsonl"
+            fi
+            break
+        fi
+    done
 fi
 
 if [ -z "$FOUND" ]; then
@@ -85,7 +95,7 @@ echo "Found checkpoint at: $FOUND"
 
 # Extract the transcript
 mkdir -p "$TARGET_DIR"
-git show "origin/$CHECKPOINT_BRANCH:$FOUND/transcript.jsonl" > "$TARGET_FILE" 2>/dev/null
+git show "origin/$CHECKPOINT_BRANCH:$FOUND/$TRANSCRIPT_FILE" > "$TARGET_FILE" 2>/dev/null
 
 if [ ! -s "$TARGET_FILE" ]; then
     rm -f "$TARGET_FILE"
@@ -95,7 +105,7 @@ fi
 
 SIZE="$(wc -c < "$TARGET_FILE" | tr -d ' ')"
 echo "Restored session transcript ($SIZE bytes)"
-echo "  From:   $FOUND/transcript.jsonl"
+echo "  From:   $FOUND/$TRANSCRIPT_FILE"
 echo "  To:     $TARGET_FILE"
 echo ""
 echo "To resume: claude --resume $SESSION_ID"

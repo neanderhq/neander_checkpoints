@@ -140,7 +140,7 @@ The parser extracts structured data from these: messages, tool calls, token usag
 
 ### Checkpointing
 
-The checkpoint system stores transcripts on a `claude-sessions/checkpoints` orphan branch — a branch with no shared history with your code, so it never pollutes your working tree. Checkpoints are created at two points:
+The checkpoint system stores transcripts on a `neander/checkpoints/v1` orphan branch — a branch with no shared history with your code, so it never pollutes your working tree. Checkpoints are created at two points:
 
 1. **Every git commit** (`PostToolUse:Bash` hook) — detects `git commit` in tool output, links the commit via a `Claude-Session` trailer, and snapshots the transcript in the background
 2. **Session end** (`Stop` hook) — catch-all that ensures every session is captured even if no commits were made

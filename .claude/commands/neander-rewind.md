@@ -14,11 +14,11 @@ List available checkpoints and optionally restore files to a previous state.
 
 **Git checkpoint branch:**
 ```
-git rev-parse --verify claude-sessions/checkpoints 2>/dev/null
+git rev-parse --verify neander/checkpoints/v1 2>/dev/null
 ```
 If it exists, list checkpoints with metadata:
 ```
-git log claude-sessions/checkpoints --format="%h %s %ai" -20
+git log neander/checkpoints/v1 --format="%h %s %ai" -20
 ```
 
 **Claude Code's built-in file snapshots** (from the session JSONL):

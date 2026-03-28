@@ -1,6 +1,6 @@
 # Summarize a Claude Code session
 
-Read the session transcript and produce a structured AI summary.
+Read the session transcript and produce a structured AI summary. Persists the summary to the checkpoint branch so it doesn't need to be regenerated.
 
 ## Arguments
 
@@ -8,6 +8,7 @@ Read the session transcript and produce a structured AI summary.
 - **empty / "current"** — summarize the current session
 - **a session ID or file path** — summarize that specific session
 - **"list"** — list all sessions for the current project and let the user pick one
+- **"--force"** (appended) — regenerate even if a summary already exists
 
 ## Finding the session file
 
@@ -15,6 +16,21 @@ Read the session transcript and produce a structured AI summary.
 - **Session ID provided**: `find ~/.claude/projects -name "<session-id>.jsonl" -type f`
 - **File path provided**: use it directly
 - **"list"**: run `python3 __SCRIPTS_DIR__/parse_jsonl.py list --project <current working directory>` and ask the user to pick
+
+## Check for existing summary
+
+Before generating, check if a summary already exists in the checkpoint metadata. If the checkpoint branch exists and the session has a checkpoint:
+
+```
+python3 __SCRIPTS_DIR__/parse_jsonl.py stats --session <path> --json
+```
+
+Get the session ID from the stats, then check the checkpoint branch:
+```
+git show neander/checkpoints/v1:<shard_dir>/metadata.json 2>/dev/null
+```
+
+If `metadata.summary` is not null and `--force` was NOT specified, display the existing summary and note it was cached. Skip generation.
 
 ## Generating the summary
 
@@ -56,5 +72,30 @@ Read the session transcript and produce a structured AI summary.
    - Things to revisit later (not failures, but conscious decisions to defer)
 
    Skip any section that doesn't apply (e.g., if there was no friction, omit it). Be concise but specific — include file paths and line numbers where relevant.
+
+## Persisting the summary
+
+After generating, save the summary to the checkpoint branch so it's cached for next time. Write the structured sections as JSON to a temp file, then run:
+
+```
+bash __SCRIPTS_DIR__/save_summary.sh <session_id> /tmp/neander-summary-<session_id>.json
+```
+
+The JSON format to write to the temp file:
+```json
+{
+  "intent": "...",
+  "outcome": "...",
+  "learnings": {
+    "repo": ["..."],
+    "code": [{"path": "file.py", "lines": "42-56", "finding": "..."}],
+    "workflow": ["..."]
+  },
+  "friction": ["..."],
+  "open_items": ["..."]
+}
+```
+
+After saving, clean up the temp file.
 
 $ARGUMENTS

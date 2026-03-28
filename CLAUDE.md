@@ -7,7 +7,7 @@ Claude Code session management toolkit — checkpoints, summaries, redaction, an
 ```
 scripts/          — Core logic (Python + Bash)
   parse_jsonl.py  — JSONL parser: list sessions, extract messages/tools/tokens/files/snapshots
-  checkpoint.sh   — Save session to git orphan branch (claude-sessions/checkpoints)
+  checkpoint.sh   — Save session to git orphan branch (neander/checkpoints/v1)
   redact.py       — 3-layer secret redaction (entropy, patterns, PII)
   link_commit.sh  — Add Claude-Session trailer to git commits
   detect_commit.sh— Hook: detect git commit in Bash output, trigger link_commit

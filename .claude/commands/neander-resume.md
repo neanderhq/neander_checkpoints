@@ -49,7 +49,7 @@ bash __SCRIPTS_DIR__/restore.sh <session_id> <current working directory>
 ```
 
 This will:
-1. Fetch the `claude-sessions/checkpoints` branch from the remote
+1. Fetch the `neander/checkpoints/v1` branch from the remote
 2. Search for the session in checkpoint metadata
 3. Extract the transcript JSONL to the correct `~/.claude/projects/` path
 4. Print the resume command

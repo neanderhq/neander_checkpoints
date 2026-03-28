@@ -174,6 +174,7 @@ new_permissions = [
     f"Bash(bash {scripts_dir}/detect_commit.sh*)",
     f"Bash(bash {scripts_dir}/link_commit.sh*)",
     f"Bash(bash {scripts_dir}/restore.sh*)",
+    f"Bash(bash {scripts_dir}/save_summary.sh*)",
     "Bash(find ~/.claude/projects*)",
 ]
 
@@ -209,7 +210,7 @@ if [ -n "$GIT_TARGET" ]; then
         REDACT_HOOK='#!/usr/bin/env bash
 # Auto-redact session transcripts before push [neander_code_sessions]
 SCRIPTS_DIR="'"$INSTALLED_SCRIPTS_DIR"'"
-CHECKPOINT_BRANCH="claude-sessions/checkpoints"
+CHECKPOINT_BRANCH="neander/checkpoints/v1"
 
 while read local_ref local_sha remote_ref remote_sha; do
     if echo "$local_ref" | grep -q "$CHECKPOINT_BRANCH"; then
