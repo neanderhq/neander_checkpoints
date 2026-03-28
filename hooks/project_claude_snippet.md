@@ -13,23 +13,23 @@ You don't need to wait for the user to run a slash command. Use these tools natu
 
 ### Available scripts
 
-All scripts are in `.claude/scripts/`. Run them via Bash:
+All scripts are in `__SCRIPTS_DIR__/`. Run them via Bash:
 
 ```bash
 # List sessions for this project
-python3 .claude/scripts/parse_jsonl.py list --project <cwd>
+python3 __SCRIPTS_DIR__/parse_jsonl.py list --project <cwd>
 
 # Search sessions (keyword, branch, file, date, commit — can combine)
-python3 .claude/scripts/parse_jsonl.py search --project <cwd> --keyword "text" --branch "name" --file "path" --date-from YYYY-MM-DD --commit SHA
+python3 __SCRIPTS_DIR__/parse_jsonl.py search --project <cwd> --keyword "text" --branch "name" --file "path" --date-from YYYY-MM-DD --commit SHA
 
 # Session stats
-python3 .claude/scripts/parse_jsonl.py stats --session <path>
+python3 __SCRIPTS_DIR__/parse_jsonl.py stats --session <path>
 
 # Condensed transcript
-python3 .claude/scripts/parse_jsonl.py transcript --session <path>
+python3 __SCRIPTS_DIR__/parse_jsonl.py transcript --session <path>
 
 # Restore session from remote (cross-machine)
-bash .claude/scripts/restore.sh <session-id> <cwd>
+bash __SCRIPTS_DIR__/restore.sh <session-id> <cwd>
 ```
 
 ### Slash commands (explicit invocation)

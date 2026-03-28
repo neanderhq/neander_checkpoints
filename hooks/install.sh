@@ -251,13 +251,37 @@ if [ -f "$SNIPPET" ]; then
     if [ -f "$CLAUDE_MD" ]; then
         if ! grep -q "neander_code_sessions" "$CLAUDE_MD"; then
             echo "" >> "$CLAUDE_MD"
-            cat "$SNIPPET" >> "$CLAUDE_MD"
+            sed "s|__SCRIPTS_DIR__|$INSTALLED_SCRIPTS_DIR|g" "$SNIPPET" >> "$CLAUDE_MD"
             echo "  [append] CLAUDE.md"
         else
-            echo "  [skip] CLAUDE.md already has session management section"
+            # Update existing section with current paths
+            python3 - "$CLAUDE_MD" "$SNIPPET" "$INSTALLED_SCRIPTS_DIR" <<'PYEOF'
+import re, sys
+
+claude_md = sys.argv[1]
+snippet_file = sys.argv[2]
+scripts_dir = sys.argv[3]
+
+with open(claude_md) as f:
+    content = f.read()
+
+with open(snippet_file) as f:
+    snippet = f.read().replace("__SCRIPTS_DIR__", scripts_dir)
+
+# Replace existing section
+content = re.sub(
+    r'## Session Management \(neander_code_sessions\).*',
+    snippet, content, flags=re.DOTALL
+)
+
+with open(claude_md, 'w') as f:
+    f.write(content)
+
+print("  [update] CLAUDE.md with current paths")
+PYEOF
         fi
     else
-        cat "$SNIPPET" > "$CLAUDE_MD"
+        sed "s|__SCRIPTS_DIR__|$INSTALLED_SCRIPTS_DIR|g" "$SNIPPET" > "$CLAUDE_MD"
         echo "  [create] CLAUDE.md"
     fi
 fi
