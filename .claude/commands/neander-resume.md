@@ -42,15 +42,20 @@ claude --resume <session_id>
 
 ## Cross-machine resume
 
-If the checkpoint branch exists on the remote:
+If the session JSONL is NOT found locally (e.g., a teammate started it on another machine), use the restore script to fetch it from the checkpoint branch:
+
 ```
-git fetch origin claude-sessions/checkpoints 2>/dev/null
+bash __SCRIPTS_DIR__/restore.sh <session_id> <current working directory>
 ```
 
-If the session JSONL doesn't exist locally but is on the checkpoint branch:
-1. Extract the transcript from the checkpoint
-2. Determine the correct local path: `~/.claude/projects/<encoded-project-dir>/<session-id>.jsonl`
-3. Copy it there
+This will:
+1. Fetch the `claude-sessions/checkpoints` branch from the remote
+2. Search for the session in checkpoint metadata
+3. Extract the transcript JSONL to the correct `~/.claude/projects/` path
 4. Print the resume command
+
+If the restore script succeeds, the user can then run `claude --resume <session_id>`.
+
+If the checkpoint branch doesn't exist on the remote, tell the user the session transcript isn't available remotely.
 
 $ARGUMENTS

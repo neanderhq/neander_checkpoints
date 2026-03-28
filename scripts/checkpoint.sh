@@ -91,6 +91,12 @@ git add "$SHARD_DIR" index.log
 git commit -m "checkpoint: ${CHECKPOINT_ID} session=${SESSION_ID:0:12} commit=${COMMIT_SHA:0:8}" --quiet
 
 CHECKPOINT_REF="$(git rev-parse HEAD)"
+
+# Push to remote if one exists
+if git remote get-url origin >/dev/null 2>&1; then
+    git push origin "$CHECKPOINT_BRANCH" --quiet 2>/dev/null || true
+fi
+
 echo "Checkpoint created: $CHECKPOINT_ID"
 echo "  Session:  $SESSION_ID"
 echo "  Commit:   $COMMIT_SHA"

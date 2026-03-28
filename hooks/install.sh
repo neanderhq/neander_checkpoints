@@ -173,6 +173,7 @@ new_permissions = [
     f"Bash(bash {scripts_dir}/checkpoint.sh*)",
     f"Bash(bash {scripts_dir}/detect_commit.sh*)",
     f"Bash(bash {scripts_dir}/link_commit.sh*)",
+    f"Bash(bash {scripts_dir}/restore.sh*)",
     "Bash(find ~/.claude/projects*)",
 ]
 
