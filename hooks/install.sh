@@ -175,7 +175,7 @@ new_permissions = [
     f"Bash(bash {scripts_dir}/link_commit.sh*)",
     f"Bash(bash {scripts_dir}/restore.sh*)",
     f"Bash(bash {scripts_dir}/save_summary.sh*)",
-    "Bash(find ~/.claude/projects*)",
+    f"Bash(find {os.path.expanduser('~')}/.claude/projects*)",
 ]
 
 permissions = settings.get("permissions", {})
