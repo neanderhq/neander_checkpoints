@@ -55,9 +55,10 @@ See [EXAMPLES.md](EXAMPLES.md) for full output examples of every command.
 ## Hooks
 
 Automatic hooks handle:
-- **Checkpointing** — saves transcript + metadata to a git orphan branch on every commit and on session stop, so you never lose context
+- **Checkpointing** — saves transcript + metadata to a git orphan branch on every commit and on session stop, and pushes to remote so teammates can access it
 - **Commit linking** — adds `Claude-Session` trailers to commits so you can trace code back to the AI conversation that wrote it
 - **Pre-push redaction** — strips secrets from transcripts before they leave your machine
+- **Cross-machine resume** — `/neander-resume` can fetch session transcripts from the checkpoint branch on the remote, so you can resume a session started on another machine
 
 ## Install
 
@@ -163,6 +164,7 @@ scripts/
   redact.py           3-layer secret redaction
   link_commit.sh      Add Claude-Session trailer to commits
   detect_commit.sh    Hook: detect git commit, trigger linking + checkpoint
+  restore.sh          Fetch session transcript from remote for cross-machine resume
 
 .claude/commands/
   neander-status.md        /neander-status
