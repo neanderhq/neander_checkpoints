@@ -3,8 +3,6 @@ description: Generate an AI summary of a Claude Code session with intent, outcom
 ---
 # Summarize a Claude Code session
 
-Read the session transcript and produce a structured AI summary. Persists the summary to the checkpoint branch so it doesn't need to be regenerated.
-
 ## Arguments
 
 `$ARGUMENTS` can be one of:
@@ -17,103 +15,54 @@ Read the session transcript and produce a structured AI summary. Persists the su
 
 ## Identifying what to summarize
 
-**Checkpoint ID** (16-char hex, no dashes): The user wants a specific checkpoint summarized. You need to find the transcript stored in that checkpoint:
+**Checkpoint ID** (16-char hex, no dashes): Find the transcript stored in that checkpoint:
 ```
 git show neander/checkpoints/v1:<id[:2]>/<id[2:]>/metadata.json 2>/dev/null
 ```
-Get the session ID from `session_ids[0]`, then find the transcript:
+Get the session ID from `session_ids[0]`, then extract the transcript:
 ```
-git show neander/checkpoints/v1:<id[:2]>/<id[2:]>/transcript-<session_id>.jsonl 2>/dev/null > /tmp/neander-transcript-<session_id>.jsonl
+git show neander/checkpoints/v1:<id[:2]>/<id[2:]>/transcript-<session_id>.jsonl 2>/dev/null > /tmp/neander-transcript.jsonl
 ```
-Use that temp file as the session file for stats/transcript generation. The save_summary.sh call should use the **checkpoint ID**, not the session ID.
+Use `/tmp/neander-transcript.jsonl` as the session file. Remember to use the **checkpoint ID** for saving.
 
-**Session ID** (UUID with dashes): Find the JSONL file:
-```
-find __HOME__/.claude/projects -name "<session-id>.jsonl" -type f
-```
-The save_summary.sh call should use the **session ID** (it will save to the latest checkpoint).
+**Session ID** (UUID with dashes): `find __HOME__/.claude/projects -name "<session-id>.jsonl" -type f`
 
 **Current session**: Your session ID is in your conversation context. Same as session ID flow.
 
 **File path**: Use it directly.
 
-## Check for existing summary
+## Execution
 
-Before generating, check if a summary already exists in the checkpoint metadata. If the checkpoint branch exists and the session has a checkpoint:
+Follow these steps IN ORDER. Do not skip any step. Do not show the summary to the user until step 4.
+
+### Step 1: Get stats and transcript
 
 ```
 python3 __SCRIPTS_DIR__/parse_jsonl.py stats --session <path> --json
+python3 __SCRIPTS_DIR__/parse_jsonl.py transcript --session <path>
 ```
 
-Get the session ID from the stats, then check the checkpoint branch:
-```
-git show neander/checkpoints/v1:<shard_dir>/metadata.json 2>/dev/null
-```
+### Step 2: Write the summary JSON file
 
-If `metadata.summary` is not null and `--force` was NOT specified, display the existing summary and note it was cached. Skip generation.
-
-## Generating the summary
-
-1. Get stats and transcript:
-   ```
-   python3 __SCRIPTS_DIR__/parse_jsonl.py stats --session <path>
-   python3 __SCRIPTS_DIR__/parse_jsonl.py transcript --session <path>
-   ```
-
-2. Read the full transcript and produce a summary with this exact structure:
-
-   **Session**: <slug> (<session_id short>)
-   **Branch**: <git branch>
-   **Duration**: <start> to <end> (<X minutes/hours>)
-   **Tokens**: <total> (<input> in / <output> out)
-
-   ### Intent
-   What the user was trying to accomplish. 1-2 sentences, be specific.
-
-   ### Outcome
-   What was actually achieved. 1-2 sentences, note if anything was left incomplete.
-
-   ### Learnings
-   **Repository**:
-   - Codebase-specific patterns, conventions, or gotchas discovered during the session
-
-   **Code**:
-   - `file/path.py:42-56` — What was learned about this specific code
-
-   **Workflow**:
-   - General development practices or tool usage insights
-
-   ### Friction
-   - Problems, blockers, or annoyances encountered during the session
-   - Include both hard blockers and minor annoyances
-
-   ### Open Items
-   - Tech debt or unfinished work intentionally deferred
-   - Things to revisit later (not failures, but conscious decisions to defer)
-
-   Skip any section that doesn't apply (e.g., if there was no friction, omit it). Be concise but specific — include file paths and line numbers where relevant.
-
-## Persisting the summary
-
-**You MUST do these two steps immediately after generating the summary, before responding to the user.**
-
-**Step 1**: Write the summary as JSON to `/tmp/neander-summary.json` using the Write tool:
+Analyze the transcript. Then write `/tmp/neander-summary.json` using the Write tool with this structure:
 
 ```json
 {
-  "intent": "...",
-  "outcome": "...",
+  "intent": "1-2 sentences on what the user was trying to accomplish",
+  "outcome": "1-2 sentences on what was achieved",
   "learnings": {
-    "repo": ["..."],
-    "code": [{"path": "file.py", "lines": "42-56", "finding": "..."}],
-    "workflow": ["..."]
+    "repo": ["codebase-specific patterns or gotchas"],
+    "code": [{"path": "file.py", "lines": "42-56", "finding": "what was learned"}],
+    "workflow": ["development practices or tool insights"]
   },
-  "friction": ["..."],
-  "open_items": ["..."]
+  "friction": ["problems or blockers encountered"],
+  "open_items": ["deferred work or things to revisit"]
 }
 ```
 
-**Step 2**: Run save_summary.sh pointing to that file:
+Omit empty arrays. Be concise but specific — include file paths and line numbers.
+
+### Step 3: Save to checkpoint branch
 
 ```
 bash __SCRIPTS_DIR__/save_summary.sh <id> /tmp/neander-summary.json
@@ -121,6 +70,28 @@ bash __SCRIPTS_DIR__/save_summary.sh <id> /tmp/neander-summary.json
 
 Use the **checkpoint ID** if the user specified one, otherwise use the **session ID**.
 
-Do NOT skip these steps. The summary is lost if you don't persist it.
+### Step 4: Display the summary to the user
+
+Read back `/tmp/neander-summary.json` and format it as:
+
+**Session**: <slug> (<session_id short>)
+**Branch**: <git branch>
+**Duration**: <start> to <end> (<X minutes/hours>)
+**Tokens**: <total> (<input> in / <output> out)
+
+### Intent
+<from JSON>
+
+### Outcome
+<from JSON>
+
+### Learnings
+(format repo/code/workflow sections)
+
+### Friction
+<from JSON>
+
+### Open Items
+<from JSON>
 
 $ARGUMENTS
