@@ -2,36 +2,36 @@
 
 This project has session management tools installed in `.claude/scripts/` and `.claude/skills/`.
 
+### IMPORTANT: Always use skills, not raw scripts
+
+When the user asks about sessions, summaries, transcripts, or checkpoints, **invoke the corresponding skill using the Skill tool** — do NOT try to do it yourself with raw git commands or scripts. The skills handle persistence and formatting correctly.
+
+| User says | Invoke this skill |
+|---|---|
+| "summarize session/checkpoint ..." | `/neander-summarize` |
+| "show transcript ...", "what happened in ..." | `/neander-transcript` |
+| "search sessions ...", "find the session where ..." | `/neander-search` |
+| "what did I do yesterday/last week" | `/neander-search` |
+| "session stats", "how much did it cost" | `/neander-session-stats` |
+| "resume session ...", "continue where I left off" | `/neander-resume` |
+| "go back", "rewind", "restore checkpoint" | `/neander-rewind` |
+| "recent sessions", "what's been going on" | `/neander-status` |
+
 ### When to use these tools proactively
 
-You don't need to wait for the user to run a slash command. Use these tools naturally when the context calls for it:
+You don't need to wait for the user to run a slash command. Use the skills naturally when the context calls for it:
 
-- **User asks about previous work** ("what did I do yesterday", "what was that session where I fixed...", "what happened with the auth refactor") → Run the search script to find relevant sessions, then show transcript or summary.
-- **User references a past session** ("continue what I was doing on feat/attachments", "go back to before that change") → Use resume or rewind.
-- **User asks about code history beyond git** ("why did we make this change", "what was the reasoning behind this approach") → Search sessions that touched the relevant files, read the transcript for context.
-- **User seems lost or is re-doing work** → Check if there's a previous session that already solved this, and mention it.
+- **User asks about previous work** → invoke `/neander-search`
+- **User references a past session** → invoke `/neander-resume` or `/neander-rewind`
+- **User asks about code history beyond git** → invoke `/neander-search`, then `/neander-transcript`
+- **User seems lost or is re-doing work** → invoke `/neander-search` to check if a previous session solved this
 
-### Available scripts
-
-All scripts are in `__SCRIPTS_DIR__/`. Run them via Bash:
+### Available scripts (for direct use only when skills don't cover the case)
 
 ```bash
-# List sessions for this project
 python3 __SCRIPTS_DIR__/parse_jsonl.py list --project <cwd>
-
-# Search sessions (keyword, branch, file, date, commit — can combine)
-python3 __SCRIPTS_DIR__/parse_jsonl.py search --project <cwd> --keyword "text" --branch "name" --file "path" --date-from YYYY-MM-DD --commit SHA
-
-# Session stats
+python3 __SCRIPTS_DIR__/parse_jsonl.py search --project <cwd> --keyword "text" --branch "name"
 python3 __SCRIPTS_DIR__/parse_jsonl.py stats --session <path>
-
-# Condensed transcript
 python3 __SCRIPTS_DIR__/parse_jsonl.py transcript --session <path>
-
-# Restore session from remote (cross-machine)
 bash __SCRIPTS_DIR__/restore.sh <session-id> <cwd>
 ```
-
-### Slash commands (explicit invocation)
-
-`/neander-status`, `/neander-search`, `/neander-transcript`, `/neander-summarize`, `/neander-session-stats`, `/neander-resume`, `/neander-rewind`, `/neander-redact`
