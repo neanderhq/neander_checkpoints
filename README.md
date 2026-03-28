@@ -7,12 +7,12 @@ Session management for Claude Code — checkpoints, summaries, redaction, and re
 Claude Code stores every session as a JSONL transcript under `~/.claude/projects/`. This toolkit turns those raw transcripts into something useful:
 
 - `/neander-status` — Active and recent sessions for the current project
-- `/neander-summarize` — AI-generated summary with caching (intent, outcome, learnings, friction, open items)
-- `/neander-transcript` — Clean, condensed transcript view (see format below)
-- `/neander-session-stats` — Token usage, estimated cost, duration, files modified
-- `/neander-rewind` — List checkpoints from all sources and restore files
-- `/neander-resume` — Find a session and get the resume command (cross-machine support)
 - `/neander-search` — Search across sessions by keyword, branch, file, date, commit, or natural language
+- `/neander-transcript` — Clean, condensed transcript view (see format below)
+- `/neander-summarize` — AI-generated summary with caching (intent, outcome, learnings, friction, open items)
+- `/neander-session-stats` — Token usage, estimated cost, duration, files modified
+- `/neander-resume` — Find a session and get the resume command (cross-machine support)
+- `/neander-rewind` — List checkpoints from all sources and restore files
 - `/neander-redact` — Scan transcripts for secrets and PII before sharing
 
 All session commands accept arguments to target different sessions:
