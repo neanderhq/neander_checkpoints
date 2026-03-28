@@ -3,33 +3,17 @@ description: View a condensed session transcript showing the conversation flow. 
 ---
 # View condensed session transcript
 
-Display the transcript output from the parser script. Do NOT summarize or rewrite it — show the `[User]`, `[Assistant]`, and `[Tool]` entries exactly as the script outputs them.
+Run this single command and display the output exactly as-is:
 
-## Arguments
-
-`$ARGUMENTS` can be one of:
-- **empty / "current"** — show transcript for the current session
-- **a session ID or file path** — show transcript for that specific session
-- **"list"** — list all sessions for the current project and let the user pick one
-
-## Finding the session file
-
-- **Current session**: Your session ID is in your conversation context. Find it with: `find __HOME__/.claude/projects -name "<your-session-id>.jsonl" -type f`
-- **Session ID provided**: `find __HOME__/.claude/projects -name "<session-id>.jsonl" -type f`
-- **File path provided**: use it directly
-- **"list"**: run `python3 __SCRIPTS_DIR__/parse_jsonl.py list --project <current working directory>` and ask the user to pick
-
-## Generating the transcript
-
-Once you have the session file path, run:
 ```
-python3 __SCRIPTS_DIR__/parse_jsonl.py transcript --session <path>
+python3 __SCRIPTS_DIR__/parse_jsonl.py transcript --session <session_id_or_path>
 ```
 
-**IMPORTANT**: Display the output exactly as-is. This is a transcript, not a summary. Do not rewrite, condense, or reorganize the output. Show it directly to the user.
+The `--session` flag accepts a full file path, a full session ID, or a partial session ID.
 
-If the output is very long, show it in chunks — first portion, then ask if the user wants to see more.
+If the user said "current", use your own session ID from the conversation context.
+If the user said "list", run `python3 __SCRIPTS_DIR__/parse_jsonl.py list --project <current working directory>` and ask the user to pick.
 
-If the user asks to filter (e.g., "just tool calls" or "just user messages"), grep the output for the relevant `[Tool]`, `[User]`, or `[Assistant]` prefix.
+**IMPORTANT**: Display the output exactly as-is in ONE call. Do NOT summarize, rewrite, paginate, or call the script multiple times. This is a transcript, not a summary.
 
 $ARGUMENTS

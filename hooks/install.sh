@@ -90,6 +90,7 @@ esac
 
 mkdir -p "$SCRIPTS_TARGET"
 for script in "$SCRIPTS_DIR"/*; do
+    [ -d "$script" ] && continue
     name="$(basename "$script")"
     cp "$script" "$SCRIPTS_TARGET/$name"
     chmod +x "$SCRIPTS_TARGET/$name"
