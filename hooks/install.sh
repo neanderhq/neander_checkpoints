@@ -180,6 +180,7 @@ new_permissions = [
     f"Bash(bash {scripts_dir}/persist_summary.sh*)",
     f"Bash(find {os.path.expanduser('~')}/.claude/projects *)",
     "Bash(ls .claude/*)",
+    "Bash(python3 *parse_jsonl.py transcript*> /tmp/neander-*)",
 ]
 
 permissions = settings.get("permissions", {})
