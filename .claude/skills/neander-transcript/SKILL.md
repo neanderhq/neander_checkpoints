@@ -3,17 +3,21 @@ description: View a condensed session transcript showing the conversation flow. 
 ---
 # View condensed session transcript
 
-Run this single command and display the output exactly as-is:
+## Step 1: Generate transcript file
 
 ```
-python3 __SCRIPTS_DIR__/parse_jsonl.py transcript --session <session_id_or_path>
+python3 __SCRIPTS_DIR__/parse_jsonl.py transcript --session <session_id_or_path> > /tmp/neander-transcript.txt
 ```
 
 The `--session` flag accepts a full file path, a full session ID, or a partial session ID.
 
-If the user said "current", use your own session ID from the conversation context.
+If the user said "current", use your own session ID.
 If the user said "list", run `python3 __SCRIPTS_DIR__/parse_jsonl.py list --project <current working directory>` and ask the user to pick.
 
-**IMPORTANT**: Display the output exactly as-is in ONE call. Do NOT summarize, rewrite, paginate, or call the script multiple times. This is a transcript, not a summary.
+## Step 2: Show the file
+
+Use the **Read** tool to read `/tmp/neander-transcript.txt` and display it to the user.
+
+Do NOT summarize, rewrite, or add commentary. Just show the file contents.
 
 $ARGUMENTS
