@@ -7,7 +7,7 @@ Session management for Claude Code — checkpoints, summaries, redaction, and re
 Claude Code stores every session as a JSONL transcript under `~/.claude/projects/`. This toolkit turns those raw transcripts into something useful:
 
 - `/neander-status` — Active and recent sessions for the current project
-- `/neander-summarize` — AI-generated summary (intent, outcome, learnings, friction, open items)
+- `/neander-summarize` — AI-generated summary with caching (intent, outcome, learnings, friction, open items)
 - `/neander-transcript` — Clean, condensed transcript view (see format below)
 - `/neander-session-stats` — Token usage, estimated cost, duration, files modified
 - `/neander-rewind` — List checkpoints from all sources and restore files
@@ -55,15 +55,15 @@ See [EXAMPLES.md](EXAMPLES.md) for full output examples of every command.
 ## Hooks
 
 Automatic hooks handle:
-- **Checkpointing** — saves transcript + metadata to a git orphan branch on every commit and on session stop, and pushes to remote so teammates can access it
+- **Checkpointing** — saves transcript + metadata to the `neander/checkpoints/v1` orphan branch on every commit and session stop, pushes to remote automatically
 - **Commit linking** — adds `Claude-Session` trailers to commits so you can trace code back to the AI conversation that wrote it
 - **Pre-push redaction** — strips secrets from transcripts before they leave your machine
-- **Cross-machine resume** — `/neander-resume` can fetch session transcripts from the checkpoint branch on the remote, so you can resume a session started on another machine
+- **Cross-machine resume** — `/neander-resume` fetches session transcripts from the checkpoint branch on the remote via `restore.sh`
 
 ## Install
 
 ```bash
-git clone <this-repo> ~/checkouts/neander_code_sessions
+git clone git@github.com:NeanderAI/neander_code_sessions.git ~/checkouts/neander_code_sessions
 cd ~/checkouts/neander_code_sessions
 ```
 
@@ -138,19 +138,60 @@ Claude Code sessions are stored as JSONL files with 6 object types:
 
 The parser extracts structured data from these: messages, tool calls, token usage (deduplicated), modified files, and file snapshots.
 
-### Checkpointing
+### Checkpoint format
 
-The checkpoint system stores transcripts on a `neander/checkpoints/v1` orphan branch — a branch with no shared history with your code, so it never pollutes your working tree. Checkpoints are created at two points:
+Checkpoints are stored on the `neander/checkpoints/v1` orphan branch — a branch with no shared history with your code, so it never pollutes your working tree. The `/v1` suffix is for schema versioning.
 
+Checkpoints are created at two points:
 1. **Every git commit** (`PostToolUse:Bash` hook) — detects `git commit` in tool output, links the commit via a `Claude-Session` trailer, and snapshots the transcript in the background
 2. **Session end** (`Stop` hook) — catch-all that ensures every session is captured even if no commits were made
 
-Checkpoints are stored in sharded directories (`<id[:2]>/<id[2:]>/`) for scalability, each containing:
-- `transcript.jsonl` — full session transcript
-- `metadata.json` — session ID, commit SHA, token stats, timestamps
-- `condensed.txt` — human-readable summary
+Each checkpoint is stored in a sharded directory (`<id[:2]>/<id[2:]>/`):
 
-Secret redaction uses three layers:
+```
+neander/checkpoints/v1/               # orphan branch
+├── README.md
+├── index.log                          # checkpoint_id|session_id|commit_sha|timestamp
+├── a3/
+│   └── f8b9c1d2e4567890/
+│       ├── metadata.json
+│       ├── transcript-<session-id-1>.jsonl
+│       └── transcript-<session-id-2>.jsonl   # multi-session support
+└── b7/
+    └── ...
+```
+
+**metadata.json**:
+```json
+{
+  "id": "a3f8b9c1d2e45678",
+  "session_ids": ["0647b6e9-6231-...", "b3ced0ec-a260-..."],
+  "commit_sha": "835718b",
+  "created_at": "2026-03-22T12:45:00Z",
+  "merged_files": ["modules/chat/handler.py", "modules/chat/repo.py"],
+  "summary": {
+    "intent": "Fix two reliability bugs in chat streaming",
+    "outcome": "Both fixes implemented and tested",
+    "learnings": {
+      "repo": ["Chat handler uses _needs_replay() for reconnect"],
+      "code": [{"path": "message_repository.py", "lines": "94-121", "finding": "..."}],
+      "workflow": ["One pre-existing test failure unrelated to changes"]
+    },
+    "friction": ["Unused datetime import needed a second cleanup pass"],
+    "open_items": ["Pre-existing test failure needs investigation"]
+  }
+}
+```
+
+Key features:
+- **Multi-session** — each transcript is namespaced as `transcript-<session_id>.jsonl`, so concurrent sessions on the same commit don't collide
+- **Persisted AI summaries** — `/neander-summarize` saves its output to `metadata.summary`, cached across sessions and machines
+- **Auto-push** — checkpoints are pushed to remote after creation, enabling cross-machine resume
+- **Versioned schema** — `/v1` branch allows future format changes without breaking existing data
+
+### Secret redaction
+
+Three-layer detection applied before pushing transcripts:
 1. **Shannon entropy** — flags high-entropy strings (threshold 4.5, min 16 chars)
 2. **Pattern matching** — 15+ known formats (AWS keys, GitHub PATs, JWTs, connection strings, etc.)
 3. **PII detection** — emails, phone numbers, SSNs
@@ -160,19 +201,20 @@ Secret redaction uses three layers:
 ```
 scripts/
   parse_jsonl.py      Core JSONL parser
-  checkpoint.sh       Save session to git orphan branch
+  checkpoint.sh       Save session to git orphan branch (multi-session, auto-push)
+  save_summary.sh     Persist AI summary into checkpoint metadata
+  restore.sh          Fetch session transcript from remote for cross-machine resume
   redact.py           3-layer secret redaction
   link_commit.sh      Add Claude-Session trailer to commits
   detect_commit.sh    Hook: detect git commit, trigger linking + checkpoint
-  restore.sh          Fetch session transcript from remote for cross-machine resume
 
 .claude/commands/
   neander-status.md        /neander-status
-  neander-summarize.md     /neander-summarize
+  neander-summarize.md     /neander-summarize (with caching + --force)
   neander-transcript.md    /neander-transcript
   neander-session-stats.md /neander-session-stats
   neander-rewind.md        /neander-rewind
-  neander-resume.md        /neander-resume
+  neander-resume.md        /neander-resume (with cross-machine restore)
   neander-redact.md        /neander-redact
 
 hooks/
