@@ -78,27 +78,12 @@ If `metadata.summary` is not null and `--force` was NOT specified, display the e
 
 ## Persisting the summary
 
-After generating, save the summary to the checkpoint branch so it's cached for next time. Write the structured sections as JSON to a temp file, then run:
+**IMPORTANT: You MUST do this step after generating the summary.** Pipe the summary as JSON directly to save_summary.sh:
 
 ```
-bash __SCRIPTS_DIR__/save_summary.sh <session_id> /tmp/neander-summary-<session_id>.json
+echo '{"intent":"...","outcome":"...","learnings":{"repo":[],"code":[],"workflow":[]},"friction":[],"open_items":[]}' | bash __SCRIPTS_DIR__/save_summary.sh <session_id> -
 ```
 
-The JSON format to write to the temp file:
-```json
-{
-  "intent": "...",
-  "outcome": "...",
-  "learnings": {
-    "repo": ["..."],
-    "code": [{"path": "file.py", "lines": "42-56", "finding": "..."}],
-    "workflow": ["..."]
-  },
-  "friction": ["..."],
-  "open_items": ["..."]
-}
-```
-
-After saving, clean up the temp file.
+Replace the JSON with the actual structured summary you generated. The `-` tells the script to read from stdin. This persists the summary to the checkpoint branch so it doesn't need to be regenerated.
 
 $ARGUMENTS
