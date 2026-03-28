@@ -1,5 +1,5 @@
 ---
-description: Generate an AI summary of a Claude Code session with intent, outcome, learnings, friction, and open items. Use when the user wants to understand what happened in a session, needs a summary, or asks about the outcome of previous work.
+description: Summarize a Claude Code session or checkpoint. MUST be invoked when the user says "summarize", "summarise", or "summary" followed by a session ID, checkpoint ID, or "current". Also use when the user asks about the outcome of previous work. This skill persists summaries to the checkpoint branch.
 ---
 # Summarize a Claude Code session
 
