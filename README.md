@@ -64,8 +64,8 @@ Automatic hooks handle:
 ## Install
 
 ```bash
-git clone git@github.com:NeanderAI/neander_code_sessions.git ~/checkouts/neander_code_sessions
-cd ~/checkouts/neander_code_sessions
+git clone git@github.com:NeanderAI/neander_checkpoints.git ~/checkouts/neander_checkpoints
+cd ~/checkouts/neander_checkpoints
 ```
 
 Then install into a project:
