@@ -95,15 +95,32 @@ If `metadata.summary` is not null and `--force` was NOT specified, display the e
 
 ## Persisting the summary
 
-**IMPORTANT: You MUST do this step after generating the summary.** Pipe the summary as JSON directly to save_summary.sh:
+**You MUST do these two steps immediately after generating the summary, before responding to the user.**
+
+**Step 1**: Write the summary as JSON to `/tmp/neander-summary.json` using the Write tool:
+
+```json
+{
+  "intent": "...",
+  "outcome": "...",
+  "learnings": {
+    "repo": ["..."],
+    "code": [{"path": "file.py", "lines": "42-56", "finding": "..."}],
+    "workflow": ["..."]
+  },
+  "friction": ["..."],
+  "open_items": ["..."]
+}
+```
+
+**Step 2**: Run save_summary.sh pointing to that file:
 
 ```
-echo '{"intent":"...","outcome":"...","learnings":{"repo":[],"code":[],"workflow":[]},"friction":[],"open_items":[]}' | bash __SCRIPTS_DIR__/save_summary.sh <id> -
+bash __SCRIPTS_DIR__/save_summary.sh <id> /tmp/neander-summary.json
 ```
 
-- If the user specified a **checkpoint ID**, use that as `<id>`
-- If the user specified a **session ID**, use that as `<id>` (save_summary.sh will find the latest checkpoint)
+Use the **checkpoint ID** if the user specified one, otherwise use the **session ID**.
 
-Replace the JSON with the actual structured summary you generated. The `-` tells the script to read from stdin.
+Do NOT skip these steps. The summary is lost if you don't persist it.
 
 $ARGUMENTS
