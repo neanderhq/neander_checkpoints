@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash __SCRIPTS_DIR__/checkpoint.sh \"$CLAUDE_SESSION_FILE\" 2>/dev/null || true"
+            "command": "bash __SCRIPTS_DIR__/on_stop.sh 2>/dev/null || true"
           }
         ]
       }
@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash __SCRIPTS_DIR__/detect_commit.sh \"$CLAUDE_SESSION_ID\" 2>/dev/null || true"
+            "command": "bash __SCRIPTS_DIR__/detect_commit.sh 2>/dev/null || true"
           }
         ]
       }

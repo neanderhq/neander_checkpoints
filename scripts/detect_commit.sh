@@ -2,25 +2,26 @@
 #
 # detect_commit.sh — Hook script for PostToolUse:Bash
 #
-# Checks if the Bash tool output contains evidence of a git commit.
+# Receives JSON on stdin from Claude Code hook system.
+# Checks if the Bash command was a git commit.
 # If so, triggers:
 #   1. link_commit.sh — add Claude-Session trailer to the commit
 #   2. checkpoint.sh  — snapshot the session transcript at this commit
 #
-# Called with: the tool output is piped to stdin or passed as env vars
-# by the Claude Code hook system.
-#
-# Usage: detect_commit.sh <session_id>
+# Usage: detect_commit.sh (reads JSON from stdin)
 #
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-SESSION_ID="${1:-}"
 
-# The hook receives tool info via environment variables
-# TOOL_INPUT contains the bash command that was run
-COMMAND="${TOOL_INPUT:-}"
+# Read hook input from stdin
+INPUT="$(cat)"
+
+# Extract fields from JSON
+COMMAND="$(echo "$INPUT" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('command',''))" 2>/dev/null || echo "")"
+SESSION_ID="$(echo "$INPUT" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('session_id',''))" 2>/dev/null || echo "")"
+TRANSCRIPT_PATH="$(echo "$INPUT" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('transcript_path',''))" 2>/dev/null || echo "")"
 
 # Check if the command looks like a git commit
 if echo "$COMMAND" | grep -qE "git commit"; then
@@ -30,12 +31,20 @@ if echo "$COMMAND" | grep -qE "git commit"; then
 
         # Find the session JSONL and checkpoint it at this commit
         COMMIT_SHA="$(git rev-parse HEAD 2>/dev/null || echo 'none')"
-        PROJECTS_DIR="$HOME/.claude/projects"
-        if [ -d "$PROJECTS_DIR" ]; then
-            SESSION_FILE="$(find "$PROJECTS_DIR" -name "${SESSION_ID}.jsonl" -type f 2>/dev/null | head -1)"
-            if [ -n "$SESSION_FILE" ]; then
-                "$SCRIPT_DIR/checkpoint.sh" "$SESSION_FILE" "$COMMIT_SHA" &
+
+        # Try transcript_path from hook input first, then search
+        SESSION_FILE=""
+        if [ -n "$TRANSCRIPT_PATH" ] && [ -f "$TRANSCRIPT_PATH" ]; then
+            SESSION_FILE="$TRANSCRIPT_PATH"
+        else
+            PROJECTS_DIR="$HOME/.claude/projects"
+            if [ -d "$PROJECTS_DIR" ]; then
+                SESSION_FILE="$(find "$PROJECTS_DIR" -name "${SESSION_ID}.jsonl" -type f 2>/dev/null | head -1)"
             fi
+        fi
+
+        if [ -n "$SESSION_FILE" ]; then
+            "$SCRIPT_DIR/checkpoint.sh" "$SESSION_FILE" "$COMMIT_SHA" &
         fi
     fi
 fi

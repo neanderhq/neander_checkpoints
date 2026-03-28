@@ -172,6 +172,7 @@ new_permissions = [
     f"Bash(python3 {scripts_dir}/redact.py*)",
     f"Bash(bash {scripts_dir}/checkpoint.sh*)",
     f"Bash(bash {scripts_dir}/detect_commit.sh*)",
+    f"Bash(bash {scripts_dir}/on_stop.sh*)",
     f"Bash(bash {scripts_dir}/link_commit.sh*)",
     f"Bash(bash {scripts_dir}/restore.sh*)",
     f"Bash(bash {scripts_dir}/save_summary.sh*)",
