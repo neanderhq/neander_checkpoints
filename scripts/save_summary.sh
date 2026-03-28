@@ -2,19 +2,20 @@
 #
 # save_summary.sh — Persist an AI summary into checkpoint metadata.
 #
-# Finds the checkpoint for a given session and updates its metadata.json
-# with the provided summary JSON.
-#
 # Usage:
-#   save_summary.sh <session_id> <summary_json_file>
-#   echo '{"intent":"..."}' | save_summary.sh <session_id> -
+#   save_summary.sh <id> <summary_json_file>
+#   echo '{"intent":"..."}' | save_summary.sh <id> -
+#
+# <id> can be:
+#   - a session ID (UUID) → saves to the latest checkpoint for that session
+#   - a checkpoint ID (16-char hex) → saves to that specific checkpoint
 #
 
 set -euo pipefail
 
 CHECKPOINT_BRANCH="neander/checkpoints/v1"
 
-SESSION_ID="${1:?Usage: save_summary.sh <session_id> <summary_json_file_or_->}"
+ID="${1:?Usage: save_summary.sh <session_id_or_checkpoint_id> <summary_json_file_or_->}"
 SUMMARY_SOURCE="${2:--}"
 
 # Read summary from file or stdin
@@ -58,14 +59,22 @@ trap cleanup EXIT
 
 git checkout "$CHECKPOINT_BRANCH" --quiet
 
-# Find checkpoint ID from index (use the latest entry for this session)
-MATCH="$(grep "$SESSION_ID" index.log 2>/dev/null | tail -1 || true)"
-if [ -z "$MATCH" ]; then
-    echo "Error: session $SESSION_ID not found in checkpoint index" >&2
-    exit 1
+# Determine if ID is a checkpoint ID or session ID
+# Checkpoint IDs are 16-char hex, session IDs are UUIDs with dashes
+CHECKPOINT_ID=""
+if echo "$ID" | grep -qE '^[0-9a-f]{16}$'; then
+    # Direct checkpoint ID
+    CHECKPOINT_ID="$ID"
+else
+    # Session ID — find latest checkpoint for this session
+    MATCH="$(grep "$ID" index.log 2>/dev/null | tail -1 || true)"
+    if [ -z "$MATCH" ]; then
+        echo "Error: $ID not found in checkpoint index" >&2
+        exit 1
+    fi
+    CHECKPOINT_ID="$(echo "$MATCH" | cut -d'|' -f1)"
 fi
 
-CHECKPOINT_ID="$(echo "$MATCH" | cut -d'|' -f1)"
 SHARD_DIR="${CHECKPOINT_ID:0:2}/${CHECKPOINT_ID:2}"
 METADATA_PATH="$SHARD_DIR/metadata.json"
 
@@ -88,6 +97,9 @@ with open('$METADATA_PATH', 'w') as f:
     json.dump(metadata, f, indent=2)
     f.write('\n')
 "
+
+# Get session ID for commit message
+SESSION_ID="$(python3 -c "import json; d=json.load(open('$METADATA_PATH')); print(d['session_ids'][0])" 2>/dev/null || echo "unknown")"
 
 git add "$METADATA_PATH"
 git commit -m "summary: session=${SESSION_ID:0:12} checkpoint=${CHECKPOINT_ID}" --quiet

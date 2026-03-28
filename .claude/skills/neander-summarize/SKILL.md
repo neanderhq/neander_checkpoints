@@ -8,17 +8,34 @@ Read the session transcript and produce a structured AI summary. Persists the su
 ## Arguments
 
 `$ARGUMENTS` can be one of:
-- **empty / "current"** — summarize the current session
-- **a session ID or file path** — summarize that specific session
+- **empty / "current"** — summarize the current session (latest checkpoint)
+- **a session ID (UUID with dashes)** — summarize the latest checkpoint for that session
+- **a checkpoint ID (16-char hex like `52e4e8dc46995673`)** — summarize that specific checkpoint
+- **a file path** — summarize that specific session file
 - **"list"** — list all sessions for the current project and let the user pick one
 - **"--force"** (appended) — regenerate even if a summary already exists
 
-## Finding the session file
+## Identifying what to summarize
 
-- **Current session**: Your session ID is in your conversation context. Find it with: `find __HOME__/.claude/projects -name "<your-session-id>.jsonl" -type f`
-- **Session ID provided**: `find __HOME__/.claude/projects -name "<session-id>.jsonl" -type f`
-- **File path provided**: use it directly
-- **"list"**: run `python3 __SCRIPTS_DIR__/parse_jsonl.py list --project <current working directory>` and ask the user to pick
+**Checkpoint ID** (16-char hex, no dashes): The user wants a specific checkpoint summarized. You need to find the transcript stored in that checkpoint:
+```
+git show neander/checkpoints/v1:<id[:2]>/<id[2:]>/metadata.json 2>/dev/null
+```
+Get the session ID from `session_ids[0]`, then find the transcript:
+```
+git show neander/checkpoints/v1:<id[:2]>/<id[2:]>/transcript-<session_id>.jsonl 2>/dev/null > /tmp/neander-transcript-<session_id>.jsonl
+```
+Use that temp file as the session file for stats/transcript generation. The save_summary.sh call should use the **checkpoint ID**, not the session ID.
+
+**Session ID** (UUID with dashes): Find the JSONL file:
+```
+find __HOME__/.claude/projects -name "<session-id>.jsonl" -type f
+```
+The save_summary.sh call should use the **session ID** (it will save to the latest checkpoint).
+
+**Current session**: Your session ID is in your conversation context. Same as session ID flow.
+
+**File path**: Use it directly.
 
 ## Check for existing summary
 
@@ -81,9 +98,12 @@ If `metadata.summary` is not null and `--force` was NOT specified, display the e
 **IMPORTANT: You MUST do this step after generating the summary.** Pipe the summary as JSON directly to save_summary.sh:
 
 ```
-echo '{"intent":"...","outcome":"...","learnings":{"repo":[],"code":[],"workflow":[]},"friction":[],"open_items":[]}' | bash __SCRIPTS_DIR__/save_summary.sh <session_id> -
+echo '{"intent":"...","outcome":"...","learnings":{"repo":[],"code":[],"workflow":[]},"friction":[],"open_items":[]}' | bash __SCRIPTS_DIR__/save_summary.sh <id> -
 ```
 
-Replace the JSON with the actual structured summary you generated. The `-` tells the script to read from stdin. This persists the summary to the checkpoint branch so it doesn't need to be regenerated.
+- If the user specified a **checkpoint ID**, use that as `<id>`
+- If the user specified a **session ID**, use that as `<id>` (save_summary.sh will find the latest checkpoint)
+
+Replace the JSON with the actual structured summary you generated. The `-` tells the script to read from stdin.
 
 $ARGUMENTS
