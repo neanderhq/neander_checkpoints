@@ -1,4 +1,4 @@
-# neander_code_sessions
+# neander_checkpoints
 
 Session management for Claude Code — checkpoints, summaries, redaction, and rewind built entirely with Claude Code hooks, slash commands, and scripts. No external binaries.
 
