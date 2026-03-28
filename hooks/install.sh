@@ -240,14 +240,39 @@ done
     fi
 fi
 
+# --- Append session management instructions to CLAUDE.md ---
+SNIPPET="$SELF_DIR/project_claude_snippet.md"
+case "$MODE" in
+    project)  CLAUDE_MD="$PROJECT_TARGET/CLAUDE.md" ;;
+    global)   CLAUDE_MD="$HOME/.claude/CLAUDE.md" ;;
+esac
+
+if [ -f "$SNIPPET" ]; then
+    if [ -f "$CLAUDE_MD" ]; then
+        if ! grep -q "neander_code_sessions" "$CLAUDE_MD"; then
+            echo "" >> "$CLAUDE_MD"
+            cat "$SNIPPET" >> "$CLAUDE_MD"
+            echo "  [append] CLAUDE.md with session management instructions"
+        else
+            echo "  [skip] CLAUDE.md already has session management section"
+        fi
+    else
+        cat "$SNIPPET" > "$CLAUDE_MD"
+        echo "  [create] CLAUDE.md with session management instructions"
+    fi
+fi
+
 echo ""
 echo "Done! Available slash commands:"
 echo "  /neander-status        — Active and recent sessions"
-echo "  /neander-summarize     — AI summary of a session"
+echo "  /neander-search        — Search across sessions"
 echo "  /neander-transcript    — Condensed transcript view"
+echo "  /neander-summarize     — AI summary of a session"
 echo "  /neander-session-stats — Token usage, costs, file stats"
-echo "  /neander-rewind        — List/restore checkpoints"
 echo "  /neander-resume        — Resume a session from checkpoint"
+echo "  /neander-rewind        — List/restore checkpoints"
 echo "  /neander-redact        — Scan and redact secrets"
+echo ""
+echo "Claude will also use these tools proactively when context calls for it."
 echo ""
 echo "To uninstall: $SELF_DIR/uninstall.sh $([ "$MODE" = "global" ] && echo "--global" || echo "")"

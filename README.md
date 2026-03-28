@@ -85,7 +85,21 @@ This copies everything into the target project's `.claude/` directory so it's se
 | `/path/to/project` | `<path>/.claude/scripts/` | `<path>/.claude/commands/` | `<path>/.claude/settings.json` | `<path>/.git/hooks/` |
 | `--global` | `~/.claude/scripts/` | `~/.claude/commands/` | `~/.claude/settings.json` | skipped |
 
-The installer also adds permission rules to `settings.json` so the scripts run without approval prompts.
+The installer also:
+- Adds permission rules to `settings.json` so scripts run without approval prompts
+- Appends session management instructions to the project's `CLAUDE.md` so Claude uses the tools **proactively** — you don't need to remember slash commands
+
+### Proactive behavior
+
+Once installed, Claude will automatically use session tools when the context calls for it:
+
+- **"What did I do yesterday?"** → searches sessions, shows relevant transcripts
+- **"What was that session where I fixed the auth bug?"** → runs search, finds it
+- **"Why did we make this change?"** → finds sessions that touched the file, reads transcript for reasoning
+- **"Continue what I was doing on feat/attachments"** → finds the session, shows resume command
+- **"Go back to before that change"** → triggers rewind
+
+The slash commands (`/neander-search`, `/neander-transcript`, etc.) are still available for explicit use.
 
 ## Uninstall
 
