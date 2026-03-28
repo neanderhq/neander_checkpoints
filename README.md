@@ -6,21 +6,22 @@ Session management for Claude Code — checkpoints, summaries, redaction, and re
 
 Claude Code stores every session as a JSONL transcript under `~/.claude/projects/`. This toolkit turns those raw transcripts into something useful:
 
-- `/summarize` — AI-generated summary (intent, outcome, key decisions, open items)
-- `/transcript` — Clean, condensed transcript view (see format below)
-- `/session-stats` — Token usage, estimated cost, duration, files modified
-- `/rewind` — List checkpoints and restore files to a previous state
-- `/resume` — Find and resume a session from a checkpoint (even cross-machine)
-- `/redact` — Scan transcripts for secrets and PII before sharing
+- `/neander-status` — Active and recent sessions for the current project
+- `/neander-summarize` — AI-generated summary (intent, outcome, learnings, friction, open items)
+- `/neander-transcript` — Clean, condensed transcript view (see format below)
+- `/neander-session-stats` — Token usage, estimated cost, duration, files modified
+- `/neander-rewind` — List checkpoints from all sources and restore files
+- `/neander-resume` — Find a session and get the resume command (cross-machine support)
+- `/neander-redact` — Scan transcripts for secrets and PII before sharing
 
 All session commands accept arguments to target different sessions:
 
 ```
-/transcript                  # current session
-/transcript current          # current session (explicit)
-/transcript list             # list all sessions, pick one
-/transcript <session-id>     # specific session by ID
-/transcript <path/to/file>   # specific session by file path
+/neander-transcript                  # current session
+/neander-transcript current          # current session (explicit)
+/neander-transcript list             # list all sessions, pick one
+/neander-transcript <session-id>     # specific session by ID
+/neander-transcript <path/to/file>   # specific session by file path
 ```
 
 ### Transcript format
@@ -113,10 +114,10 @@ python3 scripts/parse_jsonl.py files --session <path>
 python3 scripts/parse_jsonl.py snapshots --session <path>
 
 # Check for secrets (dry run)
-python3 scripts/redact.py --check <path>
+python3 scripts/neander-redact.py --check <path>
 
 # Redact secrets
-python3 scripts/redact.py <input.jsonl> <output.jsonl>
+python3 scripts/neander-redact.py <input.jsonl> <output.jsonl>
 ```
 
 ## How it works
@@ -162,12 +163,13 @@ scripts/
   detect_commit.sh    Hook: detect git commit, trigger linking + checkpoint
 
 .claude/commands/
-  summarize.md        /summarize slash command
-  transcript.md       /transcript slash command
-  session-stats.md    /session-stats slash command
-  rewind.md           /rewind slash command
-  resume.md           /resume slash command
-  redact.md           /redact slash command
+  status.md           /neander-status slash command
+  summarize.md        /neander-summarize slash command
+  transcript.md       /neander-transcript slash command
+  session-stats.md    /neander-session-stats slash command
+  rewind.md           /neander-rewind slash command
+  resume.md           /neander-resume slash command
+  redact.md           /neander-redact slash command
 
 hooks/
   hooks_config.json   Hook definitions template

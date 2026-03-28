@@ -12,24 +12,24 @@ scripts/          — Core logic (Python + Bash)
   link_commit.sh  — Add Claude-Session trailer to git commits
   detect_commit.sh— Hook: detect git commit in Bash output, trigger link_commit
 
-.claude/commands/ — Slash command skills
-  summarize.md    — /summarize: AI-generated session summary
-  transcript.md   — /transcript: condensed readable transcript
-  session-stats.md— /session-stats: tokens, costs, duration, files
-  rewind.md       — /rewind: list and restore checkpoints
-  resume.md       — /resume: resume session from checkpoint
-  redact.md       — /redact: scan and redact secrets
+.claude/commands/ — Slash command skills (all prefixed with neander-)
+  neander-status.md        — /neander-status: active and recent sessions
+  neander-summarize.md     — /neander-summarize: AI-generated session summary
+  neander-transcript.md    — /neander-transcript: condensed readable transcript
+  neander-session-stats.md — /neander-session-stats: tokens, costs, duration, files
+  neander-rewind.md        — /neander-rewind: list and restore checkpoints
+  neander-resume.md        — /neander-resume: resume session from checkpoint
+  neander-redact.md        — /neander-redact: scan and redact secrets
 
 hooks/            — Installation and config
   hooks_config.json — Hook definitions (Stop → checkpoint, PostToolUse:Bash → link commit)
-  install.sh      — Install into a target project (symlinks commands, merges hooks, adds pre-push)
+  install.sh      — Install into a target project (copies scripts, commands, hooks, permissions)
   uninstall.sh    — Clean removal
 ```
 
 ## Installation
 
 ```bash
-# Commands go global, hooks scoped to target project
 ./hooks/install.sh /path/to/project
 
 # Or everything global
@@ -41,16 +41,6 @@ Uninstall:
 ./hooks/uninstall.sh /path/to/project
 ./hooks/uninstall.sh --global
 ```
-
-## Slash commands
-
-Once installed, use in any Claude Code session:
-- `/summarize` — AI-generated session summary (intent, outcome, decisions, open items)
-- `/transcript` — condensed readable transcript
-- `/session-stats` — token usage, costs, duration, files
-- `/rewind` — list and restore checkpoints
-- `/resume` — resume session from checkpoint
-- `/redact` — scan and redact secrets from transcripts
 
 ## Scripts can also be used standalone
 
