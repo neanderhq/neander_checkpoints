@@ -3,7 +3,9 @@
 # on_stop.sh — Hook script for Stop event
 #
 # Receives JSON on stdin from Claude Code hook system.
-# Extracts session info and triggers checkpoint.sh.
+# Only creates a checkpoint if the session actually modified files
+# (i.e., used Write/Edit tools). Skips read-only sessions like
+# running /neander-summarize or asking questions.
 #
 # Usage: on_stop.sh (reads JSON from stdin)
 #
@@ -11,6 +13,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PARSER="$SCRIPT_DIR/parse_jsonl.py"
 
 # Read hook input from stdin
 INPUT="$(cat)"
@@ -30,7 +33,13 @@ elif [ -n "$SESSION_ID" ]; then
     fi
 fi
 
-if [ -n "$SESSION_FILE" ]; then
-    COMMIT_SHA="$(git rev-parse HEAD 2>/dev/null || echo 'none')"
-    "$SCRIPT_DIR/checkpoint.sh" "$SESSION_FILE" "$COMMIT_SHA"
+[ -z "$SESSION_FILE" ] && exit 0
+
+# Only checkpoint if the session modified files
+FILE_COUNT="$(python3 "$PARSER" files --session "$SESSION_FILE" 2>/dev/null | wc -l | tr -d ' ')"
+if [ "$FILE_COUNT" -eq 0 ]; then
+    exit 0
 fi
+
+COMMIT_SHA="$(git rev-parse HEAD 2>/dev/null || echo 'none')"
+"$SCRIPT_DIR/checkpoint.sh" "$SESSION_FILE" "$COMMIT_SHA"
