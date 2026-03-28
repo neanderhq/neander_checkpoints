@@ -14,10 +14,18 @@ The `--session` flag accepts a full file path, a full session ID, or a partial s
 If the user said "current", use your own session ID.
 If the user said "list", run `python3 __SCRIPTS_DIR__/parse_jsonl.py list --project <current working directory>` and ask the user to pick.
 
-## Step 2: Show the file
+## Step 2: Count lines
 
-Use the **Read** tool to read `/tmp/neander-transcript.txt` and display it to the user.
+```
+wc -l < /tmp/neander-transcript.txt
+```
 
-Do NOT summarize, rewrite, or add commentary. Just show the file contents.
+## Step 3: Display in chunks using Read tool
+
+Read `/tmp/neander-transcript.txt` using the Read tool with `limit: 50` to show 50 lines at a time. Start from offset 1.
+
+If the file has more than 50 lines, after showing the first chunk, ask the user if they want to see more. If yes, read the next 50 lines with the appropriate offset.
+
+Do NOT summarize or rewrite the content. Show the raw file contents only.
 
 $ARGUMENTS
