@@ -579,25 +579,50 @@ if __name__ == "__main__":
     if args.command == "stats":
         data = session_summary_data(args.session)
         if args.json:
-            # Remove messages for JSON stats output
             data.pop("messages", None)
+            data["snapshots_count"] = len(data.get("snapshots", []))
             print(json.dumps(data, default=str, indent=2))
         else:
             meta = data["metadata"]
             tokens = data["token_usage"]
             counts = data["message_counts"]
-            print(f"Session:  {meta['session_id']}")
-            print(f"Slug:     {meta['slug']}")
-            print(f"Branch:   {meta['git_branch']}")
-            print(f"CWD:      {meta['cwd']}")
-            print(f"Models:   {', '.join(meta['models'])}")
-            print(f"Duration: {meta['first_timestamp']} → {meta['last_timestamp']}")
-            print(f"Messages: {counts['user']} user, {counts['assistant']} assistant")
-            print(f"Tokens:   {tokens['total_tokens']:,} total ({tokens['input_tokens']:,} in, {tokens['output_tokens']:,} out)")
-            print(f"Cache:    {tokens['cache_read_input_tokens']:,} read, {tokens['cache_creation_input_tokens']:,} created")
-            print(f"Files:    {len(data['modified_files'])} modified")
+            snapshots = data.get("snapshots", [])
+
+            # Calculate duration
+            duration_str = ""
+            if meta["first_timestamp"] and meta["last_timestamp"]:
+                try:
+                    t1 = datetime.fromisoformat(meta["first_timestamp"].replace("Z", "+00:00"))
+                    t2 = datetime.fromisoformat(meta["last_timestamp"].replace("Z", "+00:00"))
+                    mins = int((t2 - t1).total_seconds() / 60)
+                    duration_str = f" ({mins} min)" if mins < 60 else f" ({mins // 60}h {mins % 60}m)"
+                except Exception:
+                    pass
+
+            # Estimate cost
+            models = meta.get("models", [])
+            is_opus = any("opus" in m for m in models)
+            input_rate = 15 if is_opus else 3  # $/M tokens
+            output_rate = 75 if is_opus else 15
+            input_cost = (tokens["input_tokens"] + tokens["cache_creation_input_tokens"]) * input_rate / 1_000_000
+            output_cost = tokens["output_tokens"] * output_rate / 1_000_000
+            cache_read_cost = tokens["cache_read_input_tokens"] * (input_rate * 0.1) / 1_000_000
+            total_cost = input_cost + output_cost + cache_read_cost
+
+            print(f"Session:    {meta['session_id']}")
+            print(f"Slug:       {meta['slug']}")
+            print(f"Branch:     {meta['git_branch']}")
+            print(f"CWD:        {meta['cwd']}")
+            print(f"Models:     {', '.join(models)}")
+            print(f"Duration:   {meta['first_timestamp']} → {meta['last_timestamp']}{duration_str}")
+            print(f"Messages:   {counts['user']} user, {counts['assistant']} assistant")
+            print(f"Tokens:     {tokens['total_tokens']:,} total ({tokens['input_tokens']:,} in, {tokens['output_tokens']:,} out)")
+            print(f"Cache:      {tokens['cache_read_input_tokens']:,} read, {tokens['cache_creation_input_tokens']:,} created")
+            print(f"Est. cost:  ${total_cost:.2f} (${input_cost:.2f} in + ${output_cost:.2f} out + ${cache_read_cost:.2f} cache)")
+            print(f"Files:      {len(data['modified_files'])} modified")
             for f in data["modified_files"]:
-                print(f"          {f}")
+                print(f"            {f}")
+            print(f"Snapshots:  {len(snapshots)}")
 
     elif args.command == "transcript":
         data = session_summary_data(args.session)
