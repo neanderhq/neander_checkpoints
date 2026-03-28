@@ -515,6 +515,18 @@ if __name__ == "__main__":
         print("Error: --session required for this command", file=sys.stderr)
         sys.exit(1)
 
+    # Resolve session ID to file path if not already a path
+    if not os.path.exists(args.session):
+        # Could be a session ID — search for the file
+        import glob
+        matches = glob.glob(f"{CLAUDE_PROJECTS_DIR}/*/{args.session}*.jsonl")
+        if matches:
+            args.session = matches[0]
+        else:
+            print(f"Error: session not found: {args.session}", file=sys.stderr)
+            print(f"Searched in: {CLAUDE_PROJECTS_DIR}/*/", file=sys.stderr)
+            sys.exit(1)
+
     if args.command == "stats":
         data = session_summary_data(args.session)
         if args.json:
