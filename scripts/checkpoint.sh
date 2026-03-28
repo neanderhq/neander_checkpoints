@@ -137,36 +137,6 @@ else
     git checkout "$CHECKPOINT_BRANCH" --quiet
 fi
 
-# Carry forward existing summary from previous checkpoint for this session
-EXISTING_SUMMARY="null"
-if [ -f "index.log" ]; then
-    PREV_MATCH="$(grep "${SESSION_IDS[0]}" index.log 2>/dev/null | tail -1 || true)"
-    if [ -n "$PREV_MATCH" ]; then
-        PREV_ID="$(echo "$PREV_MATCH" | cut -d'|' -f1)"
-        PREV_SHARD="${PREV_ID:0:2}/${PREV_ID:2}"
-        if [ -f "$PREV_SHARD/metadata.json" ]; then
-            PREV_SUMMARY="$(python3 -c "import json; d=json.load(open('$PREV_SHARD/metadata.json')); s=d.get('summary'); print(json.dumps(s) if s else 'null')" 2>/dev/null || echo "null")"
-            if [ "$PREV_SUMMARY" != "null" ]; then
-                EXISTING_SUMMARY="$PREV_SUMMARY"
-            fi
-        fi
-    fi
-fi
-
-# Rebuild metadata with carried-forward summary
-METADATA="$(python3 -c "
-import json
-metadata = {
-    'id': '$CHECKPOINT_ID',
-    'session_ids': $SESSION_IDS_JSON,
-    'commit_sha': '$COMMIT_SHA',
-    'created_at': '$TIMESTAMP',
-    'merged_files': $ALL_FILES_JSON,
-    'summary': json.loads('$EXISTING_SUMMARY') if '$EXISTING_SUMMARY' != 'null' else None
-}
-print(json.dumps(metadata, indent=2))
-")"
-
 # Create checkpoint directory
 mkdir -p "$SHARD_DIR"
 
