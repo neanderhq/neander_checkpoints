@@ -1,31 +1,101 @@
 # neander_checkpoints
 
-Session management for Claude Code — checkpoints, summaries, redaction, and rewind built entirely with Claude Code hooks, slash commands, and scripts. No external binaries.
+Capture AI coding sessions alongside your Git history. Understand *why* code changed, not just *what*. Rewind when things go wrong. Resume where you left off — even on a different machine.
 
-## What it does
+Built natively for Claude Code using hooks, skills, and scripts. No external binaries. Install once, works automatically.
 
-Claude Code stores every session as a JSONL transcript under `~/.claude/projects/`. This toolkit turns those raw transcripts into something useful:
+## Why
 
-- `/neander-status` — Active and recent sessions for the current project
-- `/neander-search` — Search across sessions by keyword, branch, file, date, commit, or natural language
-- `/neander-transcript` — Clean, condensed transcript view (see format below)
-- `/neander-summarize` — AI-generated summary with caching (intent, outcome, learnings, friction, open items)
-- `/neander-session-stats` — Token usage, estimated cost, duration, files modified
-- `/neander-resume` — Find a session and get the resume command (cross-machine support)
-- `/neander-rewind` — List checkpoints from all sources and restore files
-- `/neander-redact` — Scan transcripts for secrets and PII before sharing
+Your git log shows what code changed. But when AI writes your code, the *how* and *why* live in the conversation — prompts, reasoning, tool calls, dead ends, decisions. Without capturing that, you lose context the moment a session ends.
 
-All session skills accept arguments to target different sessions:
+neander_checkpoints solves this:
 
+- **Understand why code changed** — see the full prompt/response transcript and files touched for any commit
+- **Recover instantly** — rewind to a known-good checkpoint when an agent goes sideways, resume seamlessly
+- **Keep git history clean** — session data lives on a separate orphan branch, never pollutes your working tree
+- **Onboard faster** — show teammates the path from prompt to change to commit
+- **Search across sessions** — find that session where you fixed the auth bug, by keyword, branch, file, or just asking in natural language
+- **Cross-machine resume** — push sessions to remote, pull them on another machine, continue exactly where you left off
+
+## How it works
+
+Once installed, everything is automatic:
+
+1. **You code with Claude** — business as usual
+2. **On every commit**, a hook captures the session transcript and metadata to a `neander/checkpoints/v1` orphan branch
+3. **On session end**, a final checkpoint captures everything even if no commits were made
+4. **Commits get linked** — a `Claude-Session` trailer is added so you can trace any commit back to the conversation that produced it
+
+When you need context, just ask naturally:
+
+| You say | What happens |
+|---|---|
+| "What did I do yesterday?" | Claude searches sessions, shows relevant results |
+| "Why did we make this change?" | Claude finds the session that touched the file, reads the transcript |
+| "Continue what I was doing on feat/attachments" | Claude finds the session and shows the resume command |
+| "Go back to before that change" | Claude lists checkpoints and offers to restore |
+| "How much did that session cost?" | Claude shows token usage and cost estimate |
+
+You can also use slash commands explicitly: `/neander-status`, `/neander-search`, `/neander-transcript`, `/neander-summarize`, `/neander-session-stats`, `/neander-resume`, `/neander-rewind`, `/neander-redact`
+
+## Install
+
+```bash
+git clone git@github.com:neanderhq/neander_checkpoints.git ~/checkouts/neander_checkpoints
+cd ~/checkouts/neander_checkpoints
 ```
-/neander-transcript                  # current session
-/neander-transcript current          # current session (explicit)
-/neander-transcript list             # list all sessions, pick one
-/neander-transcript <session-id>     # specific session by ID
-/neander-transcript <path/to/file>   # specific session by file path
+
+Install into any project:
+
+```bash
+./hooks/install.sh /path/to/project
 ```
 
-### Transcript format
+That's it. The installer copies scripts, skills, hooks, and permissions into the project's `.claude/` directory. Everything is self-contained — anyone who clones the repo gets it working out of the box.
+
+```bash
+# Or install globally (hooks fire in all sessions)
+./hooks/install.sh --global
+```
+
+| | Scripts | Skills | Hooks + Permissions | Pre-push | CLAUDE.md |
+|---|---|---|---|---|---|
+| Project | `<path>/.claude/scripts/` | `<path>/.claude/skills/` | `<path>/.claude/settings.json` | `<path>/.git/hooks/` | appended |
+| Global | `~/.claude/scripts/` | `~/.claude/skills/` | `~/.claude/settings.json` | skipped | appended |
+
+### What gets installed
+
+- **Scripts** — JSONL parser, checkpoint creator, secret redaction, session restore
+- **Skills** — 8 auto-invoked skills that Claude triggers based on conversation context (no slash commands needed)
+- **Hooks** — `Stop` and `PostToolUse:Bash` hooks for automatic checkpointing and commit linking
+- **Permissions** — auto-allow rules so scripts run without approval prompts
+- **CLAUDE.md** — instructions telling Claude when to proactively use session tools
+- **Pre-push hook** — redacts secrets from transcripts before they leave your machine
+
+### Uninstall
+
+```bash
+./hooks/uninstall.sh /path/to/project
+./hooks/uninstall.sh --global
+```
+
+## Features
+
+### Session search
+
+Find any past session by keyword, branch, file, date, or commit — or just describe what you're looking for in natural language.
+
+```bash
+# Structured
+python3 scripts/parse_jsonl.py search --project . --keyword "OAuth" --branch "feat/auth"
+
+# Or just ask Claude
+> "find the session where I fixed the WebSocket reconnection bugs"
+```
+
+### Condensed transcripts
+
+Clean, readable view of any session — strips IDE noise, tool results, and thinking blocks. Shows just the conversation flow.
 
 ```
 --- 2026-03-22 ---
@@ -49,208 +119,115 @@ All session skills accept arguments to target different sessions:
 [Tool] Edit: modules/chat/chat_websocket_handler.py
 ```
 
-Date separators only appear when the day changes (useful for overnight sessions). Timestamps on `[User]` and `[Assistant]` entries. Tool results are omitted — only tool calls with a one-line detail.
+### AI summaries with caching
+
+Structured summaries capturing intent, outcome, learnings, friction, and open items. Generated once, persisted to the checkpoint branch, cached across sessions and machines.
+
+```
+### Intent
+Fix two reliability bugs in chat streaming: replay time window and upsert atomicity.
+
+### Outcome
+Both fixes implemented and tested.
+
+### Learnings
+**Code**:
+- `message_repository.py:94-121` — arrayFilters with $set is the right pattern for atomic MongoDB array updates
+
+### Friction
+- Unused datetime import needed a second cleanup pass
+
+### Open Items
+- Pre-existing test failure needs investigation
+```
+
+### Cross-machine resume
+
+Sessions are pushed to the remote checkpoint branch automatically. On another machine:
+
+```bash
+> /neander-resume <session-id>
+# or just: "continue what I was doing on feat/attachments"
+```
+
+The restore script fetches the transcript from the remote and places it in the right location for `claude --resume`.
+
+### Secret redaction
+
+Three-layer detection before transcripts leave your machine:
+1. **Shannon entropy** — high-entropy strings (API keys, tokens)
+2. **Pattern matching** — 15+ known formats (AWS keys, GitHub PATs, JWTs, connection strings)
+3. **PII detection** — emails, phone numbers, SSNs
+
+### Checkpoint format
+
+Stored on `neander/checkpoints/v1` — a versioned orphan branch that never touches your code history.
+
+```
+neander/checkpoints/v1/
+├── index.log                          # fast lookup index
+├── a3/
+│   └── f8b9c1d2e4567890/
+│       ├── metadata.json              # session IDs, commit, files, AI summary
+│       ├── transcript-<session-1>.jsonl
+│       └── transcript-<session-2>.jsonl
+```
+
+- **Multi-session** — concurrent sessions on the same commit don't collide
+- **Persisted summaries** — AI summaries cached in metadata.json
+- **Auto-push** — checkpoints pushed to remote after creation
+- **Versioned schema** — `/v1` allows future format changes without breaking existing data
 
 See [EXAMPLES.md](EXAMPLES.md) for full output examples of every command.
 
-## Hooks
-
-Automatic hooks handle:
-- **Checkpointing** — saves transcript + metadata to the `neander/checkpoints/v1` orphan branch on every commit and session stop, pushes to remote automatically
-- **Commit linking** — adds `Claude-Session` trailers to commits so you can trace code back to the AI conversation that wrote it
-- **Pre-push redaction** — strips secrets from transcripts before they leave your machine
-- **Cross-machine resume** — `/neander-resume` fetches session transcripts from the checkpoint branch on the remote via `restore.sh`
-
-## Install
-
-```bash
-git clone git@github.com:neanderhq/neander_checkpoints.git ~/checkouts/neander_checkpoints
-cd ~/checkouts/neander_checkpoints
-```
-
-Then install into a project:
-
-```bash
-# Install into a project — copies scripts, skills, hooks, and permissions
-./hooks/install.sh /path/to/project
-
-# Or everything global (hooks fire in all sessions)
-./hooks/install.sh --global
-```
-
-This copies everything into the target project's `.claude/` directory so it's self-contained — anyone who clones the repo gets the skills working out of the box.
-
-| | Scripts | Skills | Hooks + Permissions | Pre-push | CLAUDE.md |
-|---|---|---|---|---|---|
-| `/path/to/project` | `<path>/.claude/scripts/` | `<path>/.claude/skills/` | `<path>/.claude/settings.json` | `<path>/.git/hooks/` | appended |
-| `--global` | `~/.claude/scripts/` | `~/.claude/skills/` | `~/.claude/settings.json` | skipped | appended |
-
-The installer also:
-- Adds permission rules to `settings.json` so scripts run without approval prompts
-- Appends session management instructions to the project's `CLAUDE.md`
-
-### Skills vs commands
-
-These are installed as **skills** (`.claude/skills/name/SKILL.md`), not commands. The difference: skills have a `description` field that Claude matches against conversation context, so **Claude auto-invokes them without the user typing a slash command**.
-
-For example, when the user says "what did I do yesterday?", Claude recognizes this matches the `neander-search` skill description and automatically runs the session search — no `/neander-search` needed.
-
-| Trigger | What happens |
-|---|---|
-| "What did I do yesterday?" | Claude auto-invokes `neander-search` |
-| "What was that session where I fixed the auth bug?" | Claude auto-invokes `neander-search` |
-| "Why did we make this change?" | Claude searches sessions that touched the file |
-| "Continue what I was doing on feat/attachments" | Claude auto-invokes `neander-resume` |
-| "Go back to before that change" | Claude auto-invokes `neander-rewind` |
-| "How much did that session cost?" | Claude auto-invokes `neander-session-stats` |
-
-The slash commands (`/neander-search`, `/neander-transcript`, etc.) still work for explicit use.
-
-`neander-redact` has `disable-model-invocation: true` — it modifies files, so the user must invoke it explicitly.
-
-## Uninstall
-
-```bash
-./hooks/uninstall.sh /path/to/project
-./hooks/uninstall.sh --global
-```
-
-## Standalone CLI usage
+## Standalone CLI
 
 The parser works without installation:
 
 ```bash
-# List all sessions
-python3 scripts/parse_jsonl.py list
-
-# List sessions for a specific project
-python3 scripts/parse_jsonl.py list --project /path/to/project
-
-# Search sessions
-python3 scripts/parse_jsonl.py search --project /path/to/project --keyword "text" --branch "name" --file "path"
-
-# Session stats (tokens, duration, files)
-python3 scripts/parse_jsonl.py stats --session ~/.claude/projects/<dir>/<id>.jsonl
-
-# Condensed transcript
-python3 scripts/parse_jsonl.py transcript --session <path>
-
-# Files modified in a session
-python3 scripts/parse_jsonl.py files --session <path>
-
-# File snapshots / checkpoints
-python3 scripts/parse_jsonl.py snapshots --session <path>
-
-# Check for secrets (dry run)
-python3 scripts/redact.py --check <path>
-
-# Redact secrets
-python3 scripts/redact.py <input.jsonl> <output.jsonl>
+python3 scripts/parse_jsonl.py list                                    # all sessions
+python3 scripts/parse_jsonl.py list --project /path/to/project         # project sessions
+python3 scripts/parse_jsonl.py search --project . --keyword "text"     # search
+python3 scripts/parse_jsonl.py stats --session <path>                  # token usage
+python3 scripts/parse_jsonl.py transcript --session <path>             # transcript
+python3 scripts/parse_jsonl.py files --session <path>                  # modified files
+python3 scripts/redact.py --check <path>                               # scan for secrets
 ```
-
-## How it works
-
-Claude Code sessions are stored as JSONL files with 6 object types:
-
-| Type | Purpose |
-|---|---|
-| `user` | Your messages and tool results |
-| `assistant` | Claude's responses (text, thinking, tool calls) |
-| `progress` | Tool execution progress (hooks, bash, agents) |
-| `file-history-snapshot` | File state backups for undo |
-| `queue-operation` | Messages queued while Claude was busy |
-| `system` | Turn duration and metadata |
-
-The parser extracts structured data from these: messages, tool calls, token usage (deduplicated), modified files, and file snapshots.
-
-### Checkpoint format
-
-Checkpoints are stored on the `neander/checkpoints/v1` orphan branch — a branch with no shared history with your code, so it never pollutes your working tree. The `/v1` suffix is for schema versioning.
-
-Checkpoints are created at two points:
-1. **Every git commit** (`PostToolUse:Bash` hook) — detects `git commit` in tool output, links the commit via a `Claude-Session` trailer, and snapshots the transcript in the background
-2. **Session end** (`Stop` hook) — catch-all that ensures every session is captured even if no commits were made
-
-Each checkpoint is stored in a sharded directory (`<id[:2]>/<id[2:]>/`):
-
-```
-neander/checkpoints/v1/               # orphan branch
-├── README.md
-├── index.log                          # checkpoint_id|session_id|commit_sha|timestamp
-├── a3/
-│   └── f8b9c1d2e4567890/
-│       ├── metadata.json
-│       ├── transcript-<session-id-1>.jsonl
-│       └── transcript-<session-id-2>.jsonl   # multi-session support
-└── b7/
-    └── ...
-```
-
-**metadata.json**:
-```json
-{
-  "id": "a3f8b9c1d2e45678",
-  "session_ids": ["0647b6e9-6231-...", "b3ced0ec-a260-..."],
-  "commit_sha": "835718b",
-  "created_at": "2026-03-22T12:45:00Z",
-  "merged_files": ["modules/chat/handler.py", "modules/chat/repo.py"],
-  "summary": {
-    "intent": "Fix two reliability bugs in chat streaming",
-    "outcome": "Both fixes implemented and tested",
-    "learnings": {
-      "repo": ["Chat handler uses _needs_replay() for reconnect"],
-      "code": [{"path": "message_repository.py", "lines": "94-121", "finding": "..."}],
-      "workflow": ["One pre-existing test failure unrelated to changes"]
-    },
-    "friction": ["Unused datetime import needed a second cleanup pass"],
-    "open_items": ["Pre-existing test failure needs investigation"]
-  }
-}
-```
-
-Key features:
-- **Multi-session** — each transcript is namespaced as `transcript-<session_id>.jsonl`, so concurrent sessions on the same commit don't collide
-- **Persisted AI summaries** — `/neander-summarize` saves its output to `metadata.summary`, cached across sessions and machines
-- **Auto-push** — checkpoints are pushed to remote after creation, enabling cross-machine resume
-- **Versioned schema** — `/v1` branch allows future format changes without breaking existing data
-
-### Secret redaction
-
-Three-layer detection applied before pushing transcripts:
-1. **Shannon entropy** — flags high-entropy strings (threshold 4.5, min 16 chars)
-2. **Pattern matching** — 15+ known formats (AWS keys, GitHub PATs, JWTs, connection strings, etc.)
-3. **PII detection** — emails, phone numbers, SSNs
 
 ## Project structure
 
 ```
 scripts/
-  parse_jsonl.py      Core JSONL parser
-  checkpoint.sh       Save session to git orphan branch (multi-session, auto-push)
-  save_summary.sh     Persist AI summary into checkpoint metadata
-  restore.sh          Fetch session transcript from remote for cross-machine resume
-  redact.py           3-layer secret redaction
-  link_commit.sh      Add Claude-Session trailer to commits
-  detect_commit.sh    Hook: detect git commit, trigger linking + checkpoint
+  parse_jsonl.py         JSONL parser (list, search, stats, transcript, files, snapshots)
+  checkpoint.sh          Save session to orphan branch (multi-session, auto-push)
+  save_summary.sh        Persist AI summary into checkpoint metadata
+  restore.sh             Fetch transcript from remote for cross-machine resume
+  redact.py              3-layer secret redaction
+  link_commit.sh         Add Claude-Session trailer to commits
+  detect_commit.sh       Hook: detect git commit → link + checkpoint
 
-.claude/skills/              Auto-invoked by Claude based on conversation context
-  neander-status/            Recent sessions overview
-  neander-search/            Search by keyword, branch, file, date, commit
-  neander-transcript/        Condensed transcript view
-  neander-summarize/         AI summary with caching
-  neander-session-stats/     Token usage, costs, duration
-  neander-resume/            Resume session (cross-machine)
-  neander-rewind/            Restore checkpoints
-  neander-redact/            Redact secrets (user-invoked only)
+.claude/skills/          Auto-invoked by Claude based on conversation context
+  neander-status/        Recent sessions overview
+  neander-search/        Search by keyword, branch, file, date, commit
+  neander-transcript/    Condensed transcript view
+  neander-summarize/     AI summary with caching
+  neander-session-stats/ Token usage, costs, duration
+  neander-resume/        Resume session (cross-machine)
+  neander-rewind/        Restore checkpoints
+  neander-redact/        Redact secrets (user-invoked only)
 
 hooks/
-  hooks_config.json   Hook definitions template
-  install.sh          Installer (project or global)
-  uninstall.sh        Clean removal
+  hooks_config.json      Hook definitions template
+  install.sh             Installer (project or global)
+  uninstall.sh           Clean removal
 ```
 
 ## Requirements
 
 - Python 3.10+
 - Claude Code 2.x
-- git (for checkpointing and commit linking)
+- git
+
+## License
+
+MIT
