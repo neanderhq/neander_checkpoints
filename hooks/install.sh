@@ -110,7 +110,7 @@ for skill_dir in "$SKILLS_SRC"/neander-*; do
     name="$(basename "$skill_dir")"
     target_dir="$SKILLS_TARGET/$name"
     mkdir -p "$target_dir"
-    sed "s|__SCRIPTS_DIR__|$INSTALLED_SCRIPTS_DIR|g" "$skill_dir/SKILL.md" > "$target_dir/SKILL.md"
+    sed -e "s|__SCRIPTS_DIR__|$INSTALLED_SCRIPTS_DIR|g" -e "s|__HOME__|$HOME|g" "$skill_dir/SKILL.md" > "$target_dir/SKILL.md"
     echo "  [copy] skills/$name"
 done
 

@@ -15,8 +15,8 @@ Read the session transcript and produce a structured AI summary. Persists the su
 
 ## Finding the session file
 
-- **Current session**: Your session ID is in your conversation context. Find it with: `find ~/.claude/projects -name "<your-session-id>.jsonl" -type f`
-- **Session ID provided**: `find ~/.claude/projects -name "<session-id>.jsonl" -type f`
+- **Current session**: Your session ID is in your conversation context. Find it with: `find __HOME__/.claude/projects -name "<your-session-id>.jsonl" -type f`
+- **Session ID provided**: `find __HOME__/.claude/projects -name "<session-id>.jsonl" -type f`
 - **File path provided**: use it directly
 - **"list"**: run `python3 __SCRIPTS_DIR__/parse_jsonl.py list --project <current working directory>` and ask the user to pick
 

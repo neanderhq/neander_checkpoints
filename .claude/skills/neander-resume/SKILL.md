@@ -16,7 +16,7 @@ Find a previous Claude Code session and show the command to resume it.
 ## Finding the session
 
 - **Most recent**: `python3 __SCRIPTS_DIR__/parse_jsonl.py list --project <current working directory>`
-- **By session ID**: `find ~/.claude/projects -name "<session-id>.jsonl" -type f`
+- **By session ID**: `find __HOME__/.claude/projects -name "<session-id>.jsonl" -type f`
 - **By branch**: `python3 __SCRIPTS_DIR__/parse_jsonl.py list --project <current working directory>` then filter by branch from the stats
 
 ## What to show
