@@ -80,26 +80,33 @@ Then install into a project:
 
 This copies everything into the target project's `.claude/` directory so it's self-contained — anyone who clones the repo gets the commands working out of the box.
 
-| | Scripts | Commands | Hooks + Permissions | Pre-push |
-|---|---|---|---|---|
-| `/path/to/project` | `<path>/.claude/scripts/` | `<path>/.claude/commands/` | `<path>/.claude/settings.json` | `<path>/.git/hooks/` |
-| `--global` | `~/.claude/scripts/` | `~/.claude/commands/` | `~/.claude/settings.json` | skipped |
+| | Scripts | Skills | Hooks + Permissions | Pre-push | CLAUDE.md |
+|---|---|---|---|---|---|
+| `/path/to/project` | `<path>/.claude/scripts/` | `<path>/.claude/skills/` | `<path>/.claude/settings.json` | `<path>/.git/hooks/` | appended |
+| `--global` | `~/.claude/scripts/` | `~/.claude/skills/` | `~/.claude/settings.json` | skipped | appended |
 
 The installer also:
 - Adds permission rules to `settings.json` so scripts run without approval prompts
-- Appends session management instructions to the project's `CLAUDE.md` so Claude uses the tools **proactively** — you don't need to remember slash commands
+- Appends session management instructions to the project's `CLAUDE.md`
 
-### Proactive behavior
+### Skills vs commands
 
-Once installed, Claude will automatically use session tools when the context calls for it:
+These are installed as **skills** (`.claude/skills/name/SKILL.md`), not commands. The difference: skills have a `description` field that Claude matches against conversation context, so **Claude auto-invokes them without the user typing a slash command**.
 
-- **"What did I do yesterday?"** → searches sessions, shows relevant transcripts
-- **"What was that session where I fixed the auth bug?"** → runs search, finds it
-- **"Why did we make this change?"** → finds sessions that touched the file, reads transcript for reasoning
-- **"Continue what I was doing on feat/attachments"** → finds the session, shows resume command
-- **"Go back to before that change"** → triggers rewind
+For example, when the user says "what did I do yesterday?", Claude recognizes this matches the `neander-search` skill description and automatically runs the session search — no `/neander-search` needed.
 
-The slash commands (`/neander-search`, `/neander-transcript`, etc.) are still available for explicit use.
+| Trigger | What happens |
+|---|---|
+| "What did I do yesterday?" | Claude auto-invokes `neander-search` |
+| "What was that session where I fixed the auth bug?" | Claude auto-invokes `neander-search` |
+| "Why did we make this change?" | Claude searches sessions that touched the file |
+| "Continue what I was doing on feat/attachments" | Claude auto-invokes `neander-resume` |
+| "Go back to before that change" | Claude auto-invokes `neander-rewind` |
+| "How much did that session cost?" | Claude auto-invokes `neander-session-stats` |
+
+The slash commands (`/neander-search`, `/neander-transcript`, etc.) still work for explicit use.
+
+`neander-redact` has `disable-model-invocation: true` — it modifies files, so the user must invoke it explicitly.
 
 ## Uninstall
 
@@ -118,6 +125,9 @@ python3 scripts/parse_jsonl.py list
 
 # List sessions for a specific project
 python3 scripts/parse_jsonl.py list --project /path/to/project
+
+# Search sessions
+python3 scripts/parse_jsonl.py search --project /path/to/project --keyword "text" --branch "name" --file "path"
 
 # Session stats (tokens, duration, files)
 python3 scripts/parse_jsonl.py stats --session ~/.claude/projects/<dir>/<id>.jsonl
@@ -223,15 +233,15 @@ scripts/
   link_commit.sh      Add Claude-Session trailer to commits
   detect_commit.sh    Hook: detect git commit, trigger linking + checkpoint
 
-.claude/commands/
-  neander-status.md        /neander-status
-  neander-summarize.md     /neander-summarize (with caching + --force)
-  neander-transcript.md    /neander-transcript
-  neander-session-stats.md /neander-session-stats
-  neander-rewind.md        /neander-rewind
-  neander-resume.md        /neander-resume (with cross-machine restore)
-  neander-search.md        /neander-search
-  neander-redact.md        /neander-redact
+.claude/skills/              Auto-invoked by Claude based on conversation context
+  neander-status/            Recent sessions overview
+  neander-search/            Search by keyword, branch, file, date, commit
+  neander-transcript/        Condensed transcript view
+  neander-summarize/         AI summary with caching
+  neander-session-stats/     Token usage, costs, duration
+  neander-resume/            Resume session (cross-machine)
+  neander-rewind/            Restore checkpoints
+  neander-redact/            Redact secrets (user-invoked only)
 
 hooks/
   hooks_config.json   Hook definitions template
