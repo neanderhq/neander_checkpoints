@@ -176,6 +176,7 @@ new_permissions = [
     f"Bash(bash {scripts_dir}/link_commit.sh*)",
     f"Bash(bash {scripts_dir}/restore.sh*)",
     f"Bash(bash {scripts_dir}/save_summary.sh*)",
+    f"Bash(bash {scripts_dir}/persist_summary.sh*)",
     f"Bash(find {os.path.expanduser('~')}/.claude/projects *)",
     "Bash(ls .claude/*)",
 ]

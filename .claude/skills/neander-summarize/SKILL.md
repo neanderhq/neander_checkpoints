@@ -31,20 +31,16 @@ Use `/tmp/neander-transcript.jsonl` as the session file. Remember to use the **c
 
 **File path**: Use it directly.
 
-## Execution
-
-Follow these steps IN ORDER. Do not skip any step. Do not show the summary to the user until step 4.
-
-### Step 1: Get stats and transcript
+## Step 1: Get stats and transcript
 
 ```
 python3 __SCRIPTS_DIR__/parse_jsonl.py stats --session <path> --json
 python3 __SCRIPTS_DIR__/parse_jsonl.py transcript --session <path>
 ```
 
-### Step 2: Write the summary JSON file
+## Step 2: Write summary JSON file
 
-Analyze the transcript. Then write `/tmp/neander-summary.json` using the Write tool with this structure:
+Analyze the transcript. Write `/tmp/neander-summary.json` using the **Write tool** with this structure:
 
 ```json
 {
@@ -60,28 +56,32 @@ Analyze the transcript. Then write `/tmp/neander-summary.json` using the Write t
 }
 ```
 
-Guidelines for each field:
+Guidelines:
 - **intent**: What the user was trying to accomplish. 1-2 sentences, be specific.
 - **outcome**: What was actually achieved. 1-2 sentences. Note if anything was left incomplete.
-- **learnings.repo**: Codebase-specific patterns, conventions, or gotchas discovered during the session.
-- **learnings.code**: File-specific findings with paths and line numbers. Include what was learned about that specific code.
-- **learnings.workflow**: General development practices or tool usage insights.
-- **friction**: Problems, blockers, or annoyances encountered. Include both hard blockers and minor annoyances.
-- **open_items**: Tech debt or unfinished work intentionally deferred. Things to revisit later — not failures, but conscious decisions to defer.
+- **learnings.repo**: Codebase-specific patterns, conventions, or gotchas discovered.
+- **learnings.code**: File-specific findings with paths and line numbers.
+- **learnings.workflow**: Development practices or tool usage insights.
+- **friction**: Problems, blockers, or annoyances encountered.
+- **open_items**: Deferred work — not failures, but conscious decisions to defer.
 
-Skip any section that doesn't apply (use empty arrays). Be concise but specific — always include file paths and line numbers where relevant.
+Use empty arrays for sections that don't apply. Include file paths and line numbers where relevant.
 
-### Step 3: Save to checkpoint branch
+## Step 3: Persist to checkpoint branch
+
+Run this command immediately after writing the file:
 
 ```
-bash __SCRIPTS_DIR__/save_summary.sh <id> /tmp/neander-summary.json
+bash __SCRIPTS_DIR__/persist_summary.sh <id> /tmp/neander-summary.json
 ```
 
-Use the **checkpoint ID** if the user specified one, otherwise use the **session ID**.
+Use the **checkpoint ID** if the user specified one, otherwise use the **session ID** as `<id>`.
 
-### Step 4: Display the summary to the user
+This saves the summary to the checkpoint branch and outputs the JSON. If this step fails, tell the user the summary was generated but could not be saved.
 
-Read back `/tmp/neander-summary.json` and format it as:
+## Step 4: Display the summary
+
+Format the saved summary as:
 
 **Session**: <slug> (<session_id short>)
 **Branch**: <git branch>
