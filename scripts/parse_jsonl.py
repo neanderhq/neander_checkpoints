@@ -66,11 +66,10 @@ def parse_jsonl(filepath: str, offset: int = 0) -> list[dict]:
 
 def _strip_injected_tags(text: str) -> str:
     """Strip IDE-injected and system tags from text."""
-    text = re.sub(
-        r"<(?:ide_opened_file|ide_selection|system-reminder|context|command-name|user_query)>.*?"
-        r"</(?:ide_opened_file|ide_selection|system-reminder|context|command-name|user_query)>",
-        "", text, flags=re.DOTALL,
-    )
+    # Strip all XML-like tags injected by Claude Code / IDE
+    text = re.sub(r"<[a-z_-]+>.*?</[a-z_-]+>", "", text, flags=re.DOTALL)
+    # Also strip self-closing and empty tags
+    text = re.sub(r"<[a-z_-]+\s*/?>", "", text)
     return text.strip()
 
 
@@ -450,7 +449,7 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="Parse Claude Code session JSONL")
-    parser.add_argument("command", choices=["list", "stats", "transcript", "files", "snapshots", "search"])
+    parser.add_argument("command", choices=["list", "stats", "transcript", "files", "snapshots", "search", "status"])
     parser.add_argument("--session", "-s", help="Session JSONL file path")
     parser.add_argument("--project", "-p", help="Project path filter")
     parser.add_argument("--max-lines", "-n", type=int, help="Max transcript lines")
@@ -499,6 +498,56 @@ if __name__ == "__main__":
                         print(f"    [{role}] {match['snippet']}")
 
                     print()
+        sys.exit(0)
+
+    if args.command == "status":
+        sessions = find_session_files(args.project)
+        if not sessions:
+            print("No sessions found.")
+            sys.exit(0)
+
+        results = []
+        for s in sessions[:5]:
+            try:
+                data = session_summary_data(s["path"])
+                meta = data["metadata"]
+                tokens = data["token_usage"]
+                user_msgs = [m for m in data["messages"] if m["role"] == "user"]
+                first_prompt = ""
+                for um in user_msgs:
+                    text = um["text"].strip()
+                    if text and not text.startswith("<"):
+                        first_prompt = text[:80].replace("\n", " ")
+                        break
+                if not first_prompt and user_msgs:
+                    first_prompt = _strip_injected_tags(user_msgs[0]["text"])[:80].replace("\n", " ")
+                results.append({
+                    "session_id": s["session_id"],
+                    "slug": meta.get("slug", ""),
+                    "branch": meta.get("git_branch", ""),
+                    "model": ", ".join(meta.get("models", [])),
+                    "first_timestamp": meta.get("first_timestamp", ""),
+                    "last_timestamp": meta.get("last_timestamp", ""),
+                    "total_tokens": tokens.get("total_tokens", 0),
+                    "first_prompt": first_prompt,
+                    "files_modified": len(data.get("modified_files", [])),
+                })
+            except Exception:
+                continue
+
+        if args.json:
+            print(json.dumps(results, default=str, indent=2))
+        else:
+            for r in results:
+                ts = r["first_timestamp"]
+                date_str = ts.split("T")[0] if ts and "T" in ts else "?"
+                tokens_k = r["total_tokens"] / 1000
+                print(f"{r['model']} · {r['session_id'][:8]}")
+                print(f"> \"{r['first_prompt']}\"")
+                print(f"{r['branch']} · {date_str} · {tokens_k:.1f}k tokens · {r['files_modified']} files")
+                print()
+            if results:
+                print(f"To resume: claude --resume {results[0]['session_id']}")
         sys.exit(0)
 
     if args.command == "list":
