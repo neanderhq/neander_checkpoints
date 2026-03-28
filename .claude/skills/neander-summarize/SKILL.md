@@ -48,19 +48,28 @@ Analyze the transcript. Then write `/tmp/neander-summary.json` using the Write t
 
 ```json
 {
-  "intent": "1-2 sentences on what the user was trying to accomplish",
-  "outcome": "1-2 sentences on what was achieved",
+  "intent": "...",
+  "outcome": "...",
   "learnings": {
-    "repo": ["codebase-specific patterns or gotchas"],
-    "code": [{"path": "file.py", "lines": "42-56", "finding": "what was learned"}],
-    "workflow": ["development practices or tool insights"]
+    "repo": ["..."],
+    "code": [{"path": "file.py", "lines": "42-56", "finding": "..."}],
+    "workflow": ["..."]
   },
-  "friction": ["problems or blockers encountered"],
-  "open_items": ["deferred work or things to revisit"]
+  "friction": ["..."],
+  "open_items": ["..."]
 }
 ```
 
-Omit empty arrays. Be concise but specific — include file paths and line numbers.
+Guidelines for each field:
+- **intent**: What the user was trying to accomplish. 1-2 sentences, be specific.
+- **outcome**: What was actually achieved. 1-2 sentences. Note if anything was left incomplete.
+- **learnings.repo**: Codebase-specific patterns, conventions, or gotchas discovered during the session.
+- **learnings.code**: File-specific findings with paths and line numbers. Include what was learned about that specific code.
+- **learnings.workflow**: General development practices or tool usage insights.
+- **friction**: Problems, blockers, or annoyances encountered. Include both hard blockers and minor annoyances.
+- **open_items**: Tech debt or unfinished work intentionally deferred. Things to revisit later — not failures, but conscious decisions to defer.
+
+Skip any section that doesn't apply (use empty arrays). Be concise but specific — always include file paths and line numbers where relevant.
 
 ### Step 3: Save to checkpoint branch
 
