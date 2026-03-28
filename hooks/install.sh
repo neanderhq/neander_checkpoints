@@ -112,17 +112,32 @@ INSTALLED_SCRIPTS_DIR="$SCRIPTS_TARGET"
 echo "  Scripts  → $INSTALLED_SCRIPTS_DIR"
 echo ""
 
-# --- Install commands (copy with path substitution) ---
-mkdir -p "$COMMANDS_TARGET"
+# --- Install skills (copy with path substitution) ---
+SKILLS_SRC="$PROJECT_ROOT/.claude/skills"
+case "$MODE" in
+    project)  SKILLS_TARGET="$PROJECT_TARGET/.claude/skills" ;;
+    global)   SKILLS_TARGET="$GLOBAL_CLAUDE_DIR/skills" ;;
+esac
 
-for cmd in "$COMMANDS_SRC"/*.md; do
-    name="$(basename "$cmd")"
-    target_file="$COMMANDS_TARGET/$name"
-    # Remove old symlinks from previous installs
-    [ -L "$target_file" ] && rm "$target_file"
-    sed "s|__SCRIPTS_DIR__|$INSTALLED_SCRIPTS_DIR|g" "$cmd" > "$target_file"
-    echo "  [copy] commands/$name"
+for skill_dir in "$SKILLS_SRC"/neander-*; do
+    name="$(basename "$skill_dir")"
+    target_dir="$SKILLS_TARGET/$name"
+    mkdir -p "$target_dir"
+    sed "s|__SCRIPTS_DIR__|$INSTALLED_SCRIPTS_DIR|g" "$skill_dir/SKILL.md" > "$target_dir/SKILL.md"
+    echo "  [copy] skills/$name"
 done
+
+# --- Clean up old commands from previous installs ---
+COMMANDS_TARGET_OLD=""
+case "$MODE" in
+    project)  COMMANDS_TARGET_OLD="$PROJECT_TARGET/.claude/commands" ;;
+    global)   COMMANDS_TARGET_OLD="$GLOBAL_CLAUDE_DIR/commands" ;;
+esac
+if [ -d "$COMMANDS_TARGET_OLD" ]; then
+    for old_cmd in "$COMMANDS_TARGET_OLD"/neander-*.md; do
+        [ -f "$old_cmd" ] && rm "$old_cmd" && echo "  [clean] removed old $(basename "$old_cmd")"
+    done
+fi
 
 # --- Install hooks ---
 mkdir -p "$HOOKS_TARGET"

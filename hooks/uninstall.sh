@@ -90,6 +90,19 @@ if [ -d "$SCRIPTS_TARGET" ]; then
     echo "  [remove] scripts/"
 fi
 
+# --- Remove installed skills ---
+case "$MODE" in
+    project)  SKILLS_TARGET="$PROJECT_TARGET/.claude/skills" ;;
+    global)   SKILLS_TARGET="$GLOBAL_CLAUDE_DIR/skills" ;;
+esac
+
+for skill_dir in "$SKILLS_TARGET"/neander-*; do
+    if [ -d "$skill_dir" ]; then
+        rm -rf "$skill_dir"
+        echo "  [remove] skills/$(basename "$skill_dir")"
+    fi
+done
+
 # --- Remove installed commands ---
 for cmd in "$COMMANDS_SRC"/*.md; do
     name="$(basename "$cmd")"
