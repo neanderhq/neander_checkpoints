@@ -50,6 +50,8 @@ All session commands accept arguments to target different sessions:
 
 Date separators only appear when the day changes (useful for overnight sessions). Timestamps on `[User]` and `[Assistant]` entries. Tool results are omitted — only tool calls with a one-line detail.
 
+See [EXAMPLES.md](EXAMPLES.md) for full output examples of every command.
+
 ## Hooks
 
 Automatic hooks handle:
@@ -114,10 +116,10 @@ python3 scripts/parse_jsonl.py files --session <path>
 python3 scripts/parse_jsonl.py snapshots --session <path>
 
 # Check for secrets (dry run)
-python3 scripts/neander-redact.py --check <path>
+python3 scripts/redact.py --check <path>
 
 # Redact secrets
-python3 scripts/neander-redact.py <input.jsonl> <output.jsonl>
+python3 scripts/redact.py <input.jsonl> <output.jsonl>
 ```
 
 ## How it works
@@ -163,13 +165,13 @@ scripts/
   detect_commit.sh    Hook: detect git commit, trigger linking + checkpoint
 
 .claude/commands/
-  status.md           /neander-status slash command
-  summarize.md        /neander-summarize slash command
-  transcript.md       /neander-transcript slash command
-  session-stats.md    /neander-session-stats slash command
-  rewind.md           /neander-rewind slash command
-  resume.md           /neander-resume slash command
-  redact.md           /neander-redact slash command
+  neander-status.md        /neander-status
+  neander-summarize.md     /neander-summarize
+  neander-transcript.md    /neander-transcript
+  neander-session-stats.md /neander-session-stats
+  neander-rewind.md        /neander-rewind
+  neander-resume.md        /neander-resume
+  neander-redact.md        /neander-redact
 
 hooks/
   hooks_config.json   Hook definitions template
