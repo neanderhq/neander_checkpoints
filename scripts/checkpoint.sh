@@ -2,15 +2,12 @@
 #
 # checkpoint.sh — Save current session transcript to a git orphan branch.
 #
-# Called by the Stop hook or manually. Creates/updates an orphan branch
-# (neander/checkpoints/v1) with session transcripts and metadata.
+# Creates/updates a neander/checkpoints/v1 orphan branch with session
+# transcripts and metadata. Supports multiple sessions per checkpoint.
 #
-# Supports multiple sessions per checkpoint — each transcript is stored as
-# transcript-<session_id>.jsonl so concurrent sessions on the same commit
-# don't overwrite each other.
-#
-# Usage: checkpoint.sh <session_jsonl_path> [commit_sha]
-#        checkpoint.sh <path1> <path2> ... [--commit <sha>]
+# Usage:
+#   checkpoint.sh <session_jsonl_path> [commit_sha]
+#   checkpoint.sh --commit <sha> <path1> [path2] ...
 #
 
 set -euo pipefail
@@ -19,7 +16,7 @@ CHECKPOINT_BRANCH="neander/checkpoints/v1"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PARSER="$SCRIPT_DIR/parse_jsonl.py"
 
-# Parse args: support multiple session files + optional --commit flag
+# Parse args
 SESSION_FILES=()
 COMMIT_SHA=""
 
@@ -36,18 +33,18 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Backward compat: first positional arg is session file, second is commit sha
 if [ ${#SESSION_FILES[@]} -eq 0 ]; then
     echo "Usage: checkpoint.sh <session_jsonl_path> [commit_sha]" >&2
     exit 1
 fi
 
+# Backward compat: if two positional args and second isn't a file, it's commit sha
 if [ ${#SESSION_FILES[@]} -ge 2 ] && [ -z "$COMMIT_SHA" ]; then
-    # Legacy: second arg might be commit sha (not a file)
-    LAST="${SESSION_FILES[-1]}"
+    LAST_IDX=$(( ${#SESSION_FILES[@]} - 1 ))
+    LAST="${SESSION_FILES[$LAST_IDX]}"
     if [ ! -f "$LAST" ]; then
         COMMIT_SHA="$LAST"
-        unset 'SESSION_FILES[-1]'
+        unset "SESSION_FILES[$LAST_IDX]"
     fi
 fi
 
@@ -55,62 +52,61 @@ fi
 
 TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
-# Collect session IDs
+# Collect valid session IDs and files
+VALID_FILES=()
 SESSION_IDS=()
 for f in "${SESSION_FILES[@]}"; do
     if [ ! -f "$f" ]; then
         echo "Warning: Session file not found, skipping: $f" >&2
         continue
     fi
+    VALID_FILES+=("$f")
     SESSION_IDS+=("$(basename "$f" .jsonl)")
 done
 
-if [ ${#SESSION_IDS[@]} -eq 0 ]; then
+if [ ${#VALID_FILES[@]} -eq 0 ]; then
     echo "Error: No valid session files provided" >&2
     exit 1
 fi
 
-# Generate checkpoint ID from all session IDs + timestamp
-CHECKPOINT_INPUT="$(printf "%s" "${SESSION_IDS[@]}")${TIMESTAMP}"
+# Generate checkpoint ID
+CHECKPOINT_INPUT=""
+for sid in "${SESSION_IDS[@]}"; do
+    CHECKPOINT_INPUT="${CHECKPOINT_INPUT}${sid}"
+done
+CHECKPOINT_INPUT="${CHECKPOINT_INPUT}${TIMESTAMP}"
 CHECKPOINT_ID="$(echo "$CHECKPOINT_INPUT" | shasum -a 256 | cut -c1-16)"
 
-# Shard directory: first 2 chars / rest
+# Shard directory
 SHARD_DIR="${CHECKPOINT_ID:0:2}/${CHECKPOINT_ID:2}"
 
-# Collect stats and build file list
-ALL_FILES=()
-SESSION_STATS=()
-for i in "${!SESSION_FILES[@]}"; do
-    f="${SESSION_FILES[$i]}"
-    sid="${SESSION_IDS[$i]}"
+# Collect modified files from all sessions
+ALL_FILES_JSON="[]"
+for f in "${VALID_FILES[@]}"; do
     stats="$(python3 "$PARSER" stats --session "$f" --json 2>/dev/null || echo '{}')"
-    SESSION_STATS+=("$stats")
-    # Extract modified files from stats
-    files="$(echo "$stats" | python3 -c "import json,sys; d=json.load(sys.stdin); [print(f) for f in d.get('modified_files',[])]" 2>/dev/null || true)"
-    while IFS= read -r file; do
-        [ -n "$file" ] && ALL_FILES+=("$file")
-    done <<< "$files"
+    files="$(echo "$stats" | python3 -c "import json,sys; print(json.dumps(json.load(sys.stdin).get('modified_files',[])))" 2>/dev/null || echo '[]')"
+    ALL_FILES_JSON="$(python3 -c "
+import json
+a = json.loads('$ALL_FILES_JSON')
+b = json.loads('$files')
+print(json.dumps(sorted(set(a + b))))
+")"
 done
 
-# Deduplicate files
-MERGED_FILES="$(printf '%s\n' "${ALL_FILES[@]}" | sort -u | python3 -c "import json,sys; print(json.dumps([l.strip() for l in sys.stdin if l.strip()]))")"
-
-# Build session_ids JSON array
-SESSION_IDS_JSON="$(printf '%s\n' "${SESSION_IDS[@]}" | python3 -c "import json,sys; print(json.dumps([l.strip() for l in sys.stdin if l.strip()]))")"
+# Build session IDs JSON
+SESSION_IDS_JSON="$(python3 -c "import json; print(json.dumps($(printf '"%s",' "${SESSION_IDS[@]}" | sed 's/,$//' | sed 's/^/[/;s/$/]/')))")"
 
 # Build metadata
 METADATA="$(python3 -c "
-import json, sys
-
+import json
 metadata = {
     'id': '$CHECKPOINT_ID',
     'session_ids': $SESSION_IDS_JSON,
     'commit_sha': '$COMMIT_SHA',
     'created_at': '$TIMESTAMP',
-    'merged_files': $MERGED_FILES,
+    'merged_files': $ALL_FILES_JSON,
     'summary': None
 }
-
 print(json.dumps(metadata, indent=2))
 ")"
 
@@ -144,9 +140,9 @@ fi
 # Create checkpoint directory
 mkdir -p "$SHARD_DIR"
 
-# Copy transcripts — one per session, namespaced
-for i in "${!SESSION_FILES[@]}"; do
-    f="${SESSION_FILES[$i]}"
+# Copy transcripts — one per session
+for i in "${!VALID_FILES[@]}"; do
+    f="${VALID_FILES[$i]}"
     sid="${SESSION_IDS[$i]}"
     cp "$f" "$SHARD_DIR/transcript-${sid}.jsonl"
 done
@@ -156,8 +152,7 @@ echo "$METADATA" > "$SHARD_DIR/metadata.json"
 
 # Update index
 for sid in "${SESSION_IDS[@]}"; do
-    INDEX_ENTRY="$CHECKPOINT_ID|$sid|$COMMIT_SHA|$TIMESTAMP"
-    echo "$INDEX_ENTRY" >> index.log
+    echo "$CHECKPOINT_ID|$sid|$COMMIT_SHA|$TIMESTAMP" >> index.log
 done
 
 # Commit
