@@ -1,6 +1,6 @@
 ## Session Management (neander_code_sessions)
 
-This project has session management tools installed in `.claude/scripts/` and `.claude/commands/`.
+This project has session management tools installed in `.claude/scripts/` and `.claude/skills/`.
 
 ### When to use these tools proactively
 
@@ -32,7 +32,6 @@ python3 .claude/scripts/parse_jsonl.py transcript --session <path>
 bash .claude/scripts/restore.sh <session-id> <cwd>
 ```
 
-### Slash commands
+### Slash commands (explicit invocation)
 
-The user can also invoke these explicitly:
 `/neander-status`, `/neander-search`, `/neander-transcript`, `/neander-summarize`, `/neander-session-stats`, `/neander-resume`, `/neander-rewind`, `/neander-redact`

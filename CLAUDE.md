@@ -14,19 +14,19 @@ scripts/                — Core logic (Python + Bash)
   link_commit.sh        — Add Claude-Session trailer to git commits
   detect_commit.sh      — Hook: detect git commit → trigger link_commit + checkpoint
 
-.claude/commands/       — Slash commands (all prefixed neander-)
-  neander-status.md        — /neander-status: active and recent sessions
-  neander-summarize.md     — /neander-summarize: AI summary with caching
-  neander-transcript.md    — /neander-transcript: condensed transcript
-  neander-session-stats.md — /neander-session-stats: tokens, costs, duration
-  neander-rewind.md        — /neander-rewind: list and restore checkpoints
-  neander-resume.md        — /neander-resume: resume session (cross-machine)
-  neander-search.md        — /neander-search: search sessions by keyword/branch/file/date/commit
-  neander-redact.md        — /neander-redact: scan and redact secrets
+.claude/skills/         — Skills (auto-invoked by Claude based on conversation context)
+  neander-status/          — /neander-status: active and recent sessions
+  neander-search/          — /neander-search: search by keyword/branch/file/date/commit
+  neander-transcript/      — /neander-transcript: condensed transcript
+  neander-summarize/       — /neander-summarize: AI summary with caching
+  neander-session-stats/   — /neander-session-stats: tokens, costs, duration
+  neander-resume/          — /neander-resume: resume session (cross-machine)
+  neander-rewind/          — /neander-rewind: list and restore checkpoints
+  neander-redact/          — /neander-redact: scan and redact secrets (user-invoked only)
 
 hooks/                  — Installation and config
   hooks_config.json     — Hook definitions (Stop → checkpoint, PostToolUse:Bash → detect commit)
-  install.sh            — Install into a target project (copies scripts, commands, hooks, permissions)
+  install.sh            — Install into a target project (copies scripts, skills, hooks, permissions)
   uninstall.sh          — Clean removal
 ```
 
@@ -47,7 +47,7 @@ Stored on a versioned orphan branch. Each checkpoint is sharded:
 ## Installation
 
 ```bash
-./hooks/install.sh /path/to/project   # copies scripts + commands + hooks + permissions
+./hooks/install.sh /path/to/project   # copies scripts + skills + hooks + permissions
 ./hooks/install.sh --global           # everything into ~/.claude/
 ```
 

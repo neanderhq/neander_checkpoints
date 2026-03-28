@@ -15,7 +15,7 @@ Claude Code stores every session as a JSONL transcript under `~/.claude/projects
 - `/neander-rewind` — List checkpoints from all sources and restore files
 - `/neander-redact` — Scan transcripts for secrets and PII before sharing
 
-All session commands accept arguments to target different sessions:
+All session skills accept arguments to target different sessions:
 
 ```
 /neander-transcript                  # current session
@@ -71,14 +71,14 @@ cd ~/checkouts/neander_code_sessions
 Then install into a project:
 
 ```bash
-# Install into a project — copies scripts, commands, hooks, and permissions
+# Install into a project — copies scripts, skills, hooks, and permissions
 ./hooks/install.sh /path/to/project
 
 # Or everything global (hooks fire in all sessions)
 ./hooks/install.sh --global
 ```
 
-This copies everything into the target project's `.claude/` directory so it's self-contained — anyone who clones the repo gets the commands working out of the box.
+This copies everything into the target project's `.claude/` directory so it's self-contained — anyone who clones the repo gets the skills working out of the box.
 
 | | Scripts | Skills | Hooks + Permissions | Pre-push | CLAUDE.md |
 |---|---|---|---|---|---|
