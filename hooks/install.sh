@@ -1,20 +1,18 @@
 #!/usr/bin/env bash
 #
-# install.sh — Install neander_code_sessions hooks and commands.
+# install.sh — Install neander_code_sessions skills, scripts, and hooks.
 #
 # Usage:
-#   ./hooks/install.sh /path/to/project   # commands global, hooks + pre-push into project
-#   ./hooks/install.sh --global           # commands + hooks both global, no pre-push
+#   ./hooks/install.sh /path/to/project   # skills + scripts + hooks into project
+#   ./hooks/install.sh --global           # everything into ~/.claude/
 #
-# Default (with path):
-#   - Commands → ~/.claude/commands/  (available everywhere)
-#   - Hooks    → <path>/.claude/settings.json  (opt-in per repo)
-#   - Pre-push → <path>/.git/hooks/pre-push
-#
-# --global:
-#   - Commands → ~/.claude/commands/
-#   - Hooks    → ~/.claude/settings.json
-#   - Pre-push skipped (makes no sense globally)
+# What gets installed:
+#   - Scripts  → <target>/.claude/scripts/
+#   - Skills   → <target>/.claude/skills/    (auto-invoked by Claude)
+#   - Hooks    → <target>/.claude/settings.json
+#   - Perms    → <target>/.claude/settings.json
+#   - Pre-push → <target>/.git/hooks/pre-push  (project mode only)
+#   - CLAUDE.md appended with session management instructions
 #
 
 set -euo pipefail
@@ -22,7 +20,7 @@ set -euo pipefail
 SELF_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SELF_DIR/.." && pwd)"
 SCRIPTS_DIR="$PROJECT_ROOT/scripts"
-COMMANDS_SRC="$PROJECT_ROOT/.claude/commands"
+SKILLS_SRC="$PROJECT_ROOT/.claude/skills"
 
 GLOBAL_CLAUDE_DIR="$HOME/.claude"
 MODE=""
@@ -37,8 +35,8 @@ while [[ $# -gt 0 ]]; do
             ;;
         -h|--help)
             echo "Usage:"
-            echo "  ./hooks/install.sh /path/to/project   # commands global, hooks into project"
-            echo "  ./hooks/install.sh --global           # everything global"
+            echo "  ./hooks/install.sh /path/to/project   # install into project"
+            echo "  ./hooks/install.sh --global           # install globally"
             exit 0
             ;;
         *)
@@ -51,8 +49,8 @@ done
 # --- Validate args ---
 if [ -z "$MODE" ] && [ -z "$PROJECT_TARGET" ]; then
     echo "Usage:"
-    echo "  ./hooks/install.sh /path/to/project   # commands global, hooks into project"
-    echo "  ./hooks/install.sh --global           # everything global"
+    echo "  ./hooks/install.sh /path/to/project   # install into project"
+    echo "  ./hooks/install.sh --global           # install globally"
     exit 1
 fi
 
@@ -63,40 +61,31 @@ fi
 # --- Resolve targets based on mode ---
 case "$MODE" in
     global)
-        COMMANDS_TARGET="$GLOBAL_CLAUDE_DIR/commands"
         HOOKS_TARGET="$GLOBAL_CLAUDE_DIR"
         HOOKS_SETTINGS="$HOOKS_TARGET/settings.json"
         GIT_TARGET=""
         echo "Installing neander_code_sessions (global):"
-        echo "  Commands → $COMMANDS_TARGET"
         echo "  Hooks    → $HOOKS_SETTINGS"
         echo "  Pre-push → skipped (global mode)"
         ;;
     project)
-        # Resolve relative paths
         if [[ "$PROJECT_TARGET" == "." ]]; then
             PROJECT_TARGET="$(pwd)"
         else
             PROJECT_TARGET="$(cd "$PROJECT_TARGET" && pwd)"
         fi
-        COMMANDS_TARGET="$PROJECT_TARGET/.claude/commands"
         HOOKS_TARGET="$PROJECT_TARGET/.claude"
         HOOKS_SETTINGS="$HOOKS_TARGET/settings.json"
         GIT_TARGET="$PROJECT_TARGET"
         echo "Installing neander_code_sessions into: $PROJECT_TARGET"
-        echo "  Commands → $COMMANDS_TARGET"
         echo "  Hooks    → $HOOKS_SETTINGS"
         ;;
 esac
 
-# --- Copy scripts into target ---
+# --- Copy scripts ---
 case "$MODE" in
-    project)
-        SCRIPTS_TARGET="$PROJECT_TARGET/.claude/scripts"
-        ;;
-    global)
-        SCRIPTS_TARGET="$GLOBAL_CLAUDE_DIR/scripts"
-        ;;
+    project)  SCRIPTS_TARGET="$PROJECT_TARGET/.claude/scripts" ;;
+    global)   SCRIPTS_TARGET="$GLOBAL_CLAUDE_DIR/scripts" ;;
 esac
 
 mkdir -p "$SCRIPTS_TARGET"
@@ -107,13 +96,11 @@ for script in "$SCRIPTS_DIR"/*; do
     echo "  [copy] scripts/$name"
 done
 
-# Commands and hooks reference the installed scripts location
 INSTALLED_SCRIPTS_DIR="$SCRIPTS_TARGET"
 echo "  Scripts  → $INSTALLED_SCRIPTS_DIR"
 echo ""
 
-# --- Install skills (copy with path substitution) ---
-SKILLS_SRC="$PROJECT_ROOT/.claude/skills"
+# --- Copy skills (with __SCRIPTS_DIR__ substitution) ---
 case "$MODE" in
     project)  SKILLS_TARGET="$PROJECT_TARGET/.claude/skills" ;;
     global)   SKILLS_TARGET="$GLOBAL_CLAUDE_DIR/skills" ;;
@@ -127,23 +114,21 @@ for skill_dir in "$SKILLS_SRC"/neander-*; do
     echo "  [copy] skills/$name"
 done
 
-# --- Clean up old commands from previous installs ---
-COMMANDS_TARGET_OLD=""
+# --- Clean up old .claude/commands/ from previous installs ---
 case "$MODE" in
-    project)  COMMANDS_TARGET_OLD="$PROJECT_TARGET/.claude/commands" ;;
-    global)   COMMANDS_TARGET_OLD="$GLOBAL_CLAUDE_DIR/commands" ;;
+    project)  OLD_CMDS="$PROJECT_TARGET/.claude/commands" ;;
+    global)   OLD_CMDS="$GLOBAL_CLAUDE_DIR/commands" ;;
 esac
-if [ -d "$COMMANDS_TARGET_OLD" ]; then
-    for old_cmd in "$COMMANDS_TARGET_OLD"/neander-*.md; do
+if [ -d "$OLD_CMDS" ]; then
+    for old_cmd in "$OLD_CMDS"/neander-*.md; do
         [ -f "$old_cmd" ] && rm "$old_cmd" && echo "  [clean] removed old $(basename "$old_cmd")"
     done
 fi
 
-# --- Install hooks ---
+# --- Install hooks + permissions ---
 mkdir -p "$HOOKS_TARGET"
 HOOKS_TEMPLATE="$SELF_DIR/hooks_config.json"
 
-# Create a temp file with the scripts dir substituted
 HOOKS_TMPFILE="$(mktemp)"
 sed "s|__SCRIPTS_DIR__|$INSTALLED_SCRIPTS_DIR|g" "$HOOKS_TEMPLATE" > "$HOOKS_TMPFILE"
 trap "rm -f '$HOOKS_TMPFILE'" EXIT
@@ -207,14 +192,14 @@ with open(settings_file, "w") as f:
     json.dump(settings, f, indent=2)
     f.write("\n")
 
-print(f"  [{action}] hooks into {settings_file}")
+print(f"  [{action}] hooks + permissions into {settings_file}")
 if added:
     print(f"  [add] {added} permission rules")
 else:
     print(f"  [skip] permissions already present")
 PYEOF
 
-# --- Install git pre-push hook (only if we have a git target) ---
+# --- Install git pre-push hook (project mode only) ---
 if [ -n "$GIT_TARGET" ]; then
     GIT_DIR="$GIT_TARGET/.git"
     if [ -d "$GIT_DIR" ]; then
@@ -267,18 +252,18 @@ if [ -f "$SNIPPET" ]; then
         if ! grep -q "neander_code_sessions" "$CLAUDE_MD"; then
             echo "" >> "$CLAUDE_MD"
             cat "$SNIPPET" >> "$CLAUDE_MD"
-            echo "  [append] CLAUDE.md with session management instructions"
+            echo "  [append] CLAUDE.md"
         else
             echo "  [skip] CLAUDE.md already has session management section"
         fi
     else
         cat "$SNIPPET" > "$CLAUDE_MD"
-        echo "  [create] CLAUDE.md with session management instructions"
+        echo "  [create] CLAUDE.md"
     fi
 fi
 
 echo ""
-echo "Done! Available slash commands:"
+echo "Done! Skills installed (auto-invoked by Claude):"
 echo "  /neander-status        — Active and recent sessions"
 echo "  /neander-search        — Search across sessions"
 echo "  /neander-transcript    — Condensed transcript view"
@@ -286,8 +271,8 @@ echo "  /neander-summarize     — AI summary of a session"
 echo "  /neander-session-stats — Token usage, costs, file stats"
 echo "  /neander-resume        — Resume a session from checkpoint"
 echo "  /neander-rewind        — List/restore checkpoints"
-echo "  /neander-redact        — Scan and redact secrets"
+echo "  /neander-redact        — Scan and redact secrets (user-invoked only)"
 echo ""
-echo "Claude will also use these tools proactively when context calls for it."
+echo "Claude will also use these proactively when the conversation calls for it."
 echo ""
 echo "To uninstall: $SELF_DIR/uninstall.sh $([ "$MODE" = "global" ] && echo "--global" || echo "")"
