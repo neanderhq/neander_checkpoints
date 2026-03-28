@@ -223,6 +223,68 @@ To resume the session: claude --resume abc123-session-id
 
 ---
 
+## /neander-search
+
+### By keyword
+```
+> /neander-search replay
+
+Found 4 matching session(s):
+
+  508dd1d0-e9f...  2026-03-22  refactor/unify-intake
+  > "Fix the WebSocket reconnection bug where messages..."
+  keyword: 30 matches  ·  219,855 tokens
+    [user] ...backend currently replays message.created and message.delta...
+    [assi] ...the replay infrastructure already exists...
+
+  0647b6e9-623...  2026-03-22  refactor/unify-intake
+  > "Implement the following plan: Two Chat Streaming..."
+  keyword: 5 matches  ·  4,419 tokens
+    [assi] ..._needs_replay() now returns True for any assistant message...
+```
+
+### By file
+```
+> /neander-search which session edited message_repository.py
+
+Found 5 matching session(s):
+
+  c5f539a7-d71...  2026-03-22  refactor/unify-intake
+  > "Fix the two-step upsert race condition..."
+  files: modules/chat/repositories/message_repository.py  ·  19,466 tokens
+```
+
+### Natural language
+```
+> /neander-search the session where I fixed WebSocket reconnection bugs last week
+
+Based on your query, the most relevant session is:
+
+  508dd1d0-e9f...  2026-03-22  refactor/unify-intake
+  > "Fix the WebSocket reconnection bug where messages from previous..."
+  219,855 tokens · 3h session
+
+  This session addressed WebSocket reconnection issues including
+  message replay, cross-conversation leaking, and false disconnect
+  indicators.
+
+  /neander-transcript 508dd1d0 to view full transcript
+  /neander-summarize 508dd1d0 to see summary
+```
+
+### Combined filters
+```
+> /neander-search OAuth on feat/auth since March 20
+
+Found 2 matching session(s):
+
+  abc123...  2026-03-21  feat/auth
+  > "Add OAuth callback handler..."
+  keyword: 12 matches · branch: feat/auth · date: 2026-03-21  ·  34,500 tokens
+```
+
+---
+
 ## /neander-redact
 
 ```

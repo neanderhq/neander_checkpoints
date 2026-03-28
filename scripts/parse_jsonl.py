@@ -332,16 +332,174 @@ def session_summary_data(filepath: str) -> dict:
     }
 
 
+def search_sessions(project_path: str = None, keyword: str = None,
+                     branch: str = None, file_path: str = None,
+                     date_from: str = None, date_to: str = None,
+                     commit: str = None) -> list[dict]:
+    """Search across all sessions matching any combination of filters.
+
+    Returns a list of matches with session info and match reasons.
+    """
+    sessions = find_session_files(project_path)
+    results = []
+
+    for session in sessions:
+        path = session["path"]
+        try:
+            entries = parse_jsonl(path)
+        except Exception:
+            continue
+
+        meta = get_session_metadata(entries)
+        reasons = []
+
+        # Date range filter
+        if date_from or date_to:
+            ts = meta.get("first_timestamp", "")
+            if not ts:
+                continue
+            session_date = ts.split("T")[0]
+            if date_from and session_date < date_from:
+                continue
+            if date_to and session_date > date_to:
+                continue
+            reasons.append(f"date: {session_date}")
+
+        # Branch filter
+        if branch:
+            session_branch = meta.get("git_branch", "")
+            if branch.lower() not in session_branch.lower():
+                continue
+            reasons.append(f"branch: {session_branch}")
+
+        # File filter
+        if file_path:
+            files = extract_modified_files(entries)
+            matching = [f for f in files if file_path.lower() in f.lower()]
+            if not matching:
+                continue
+            reasons.append(f"files: {', '.join(matching[:3])}")
+
+        # Commit filter (check tool calls for git commits containing the SHA)
+        if commit:
+            found = False
+            for entry in entries:
+                raw = json.dumps(entry)
+                if commit in raw:
+                    found = True
+                    break
+            if not found:
+                continue
+            reasons.append(f"commit: {commit}")
+
+        # Keyword search (across user prompts and assistant text)
+        if keyword:
+            messages = extract_messages(entries)
+            keyword_lower = keyword.lower()
+            matching_msgs = []
+            for msg in messages:
+                if msg["role"] in ("user", "assistant") and keyword_lower in msg["text"].lower():
+                    # Grab context around the match
+                    text = msg["text"]
+                    idx = text.lower().find(keyword_lower)
+                    start = max(0, idx - 40)
+                    end = min(len(text), idx + len(keyword) + 40)
+                    snippet = text[start:end].replace("\n", " ").strip()
+                    if start > 0:
+                        snippet = "..." + snippet
+                    if end < len(text):
+                        snippet = snippet + "..."
+                    matching_msgs.append({
+                        "role": msg["role"],
+                        "snippet": snippet,
+                    })
+            if not matching_msgs:
+                continue
+            reasons.append(f"keyword: {len(matching_msgs)} matches")
+
+        # If no filters were specified, include everything
+        if not any([keyword, branch, file_path, date_from, date_to, commit]):
+            reasons.append("all")
+
+        if reasons or not any([keyword, branch, file_path, date_from, date_to, commit]):
+            # Get first user prompt as context
+            messages = extract_messages(entries)
+            user_msgs = [m for m in messages if m["role"] == "user"]
+            first_prompt = user_msgs[0]["text"][:100] if user_msgs else ""
+
+            tokens = calculate_token_usage(entries)
+
+            results.append({
+                "session_id": session["session_id"],
+                "path": path,
+                "branch": meta.get("git_branch", ""),
+                "slug": meta.get("slug", ""),
+                "first_timestamp": meta.get("first_timestamp", ""),
+                "last_timestamp": meta.get("last_timestamp", ""),
+                "first_prompt": first_prompt,
+                "total_tokens": tokens.get("total_tokens", 0),
+                "modified": str(session["modified"]),
+                "match_reasons": reasons,
+                "keyword_matches": matching_msgs if keyword and matching_msgs else [],
+            })
+
+    return results
+
+
 if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="Parse Claude Code session JSONL")
-    parser.add_argument("command", choices=["list", "stats", "transcript", "files", "snapshots"])
+    parser.add_argument("command", choices=["list", "stats", "transcript", "files", "snapshots", "search"])
     parser.add_argument("--session", "-s", help="Session JSONL file path")
     parser.add_argument("--project", "-p", help="Project path filter")
     parser.add_argument("--max-lines", "-n", type=int, help="Max transcript lines")
     parser.add_argument("--json", action="store_true", help="Output as JSON")
+    # Search filters
+    parser.add_argument("--keyword", "-k", help="Search keyword in prompts/responses")
+    parser.add_argument("--branch", "-b", help="Filter by git branch")
+    parser.add_argument("--file", "-f", help="Filter by modified file path")
+    parser.add_argument("--date-from", help="Filter sessions from date (YYYY-MM-DD)")
+    parser.add_argument("--date-to", help="Filter sessions to date (YYYY-MM-DD)")
+    parser.add_argument("--commit", help="Filter by commit SHA")
     args = parser.parse_args()
+
+    if args.command == "search":
+        results = search_sessions(
+            project_path=args.project,
+            keyword=args.keyword,
+            branch=args.branch,
+            file_path=args.file,
+            date_from=args.date_from,
+            date_to=args.date_to,
+            commit=args.commit,
+        )
+        if args.json:
+            print(json.dumps(results, default=str, indent=2))
+        else:
+            if not results:
+                print("No matching sessions found.")
+            else:
+                print(f"Found {len(results)} matching session(s):\n")
+                for r in results:
+                    sid = r["session_id"][:12]
+                    branch = r["branch"] or "unknown"
+                    ts = r["first_timestamp"].split("T")[0] if r["first_timestamp"] else "?"
+                    tokens = r["total_tokens"]
+                    prompt = r["first_prompt"].replace("\n", " ")[:80]
+                    reasons = " · ".join(r["match_reasons"])
+
+                    print(f"  {sid}...  {ts}  {branch}")
+                    print(f"  > \"{prompt}\"")
+                    print(f"  {reasons}  ·  {tokens:,} tokens")
+
+                    # Show keyword match snippets
+                    for match in r.get("keyword_matches", [])[:3]:
+                        role = match["role"][:4]
+                        print(f"    [{role}] {match['snippet']}")
+
+                    print()
+        sys.exit(0)
 
     if args.command == "list":
         sessions = find_session_files(args.project)

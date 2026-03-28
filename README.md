@@ -12,6 +12,7 @@ Claude Code stores every session as a JSONL transcript under `~/.claude/projects
 - `/neander-session-stats` — Token usage, estimated cost, duration, files modified
 - `/neander-rewind` — List checkpoints from all sources and restore files
 - `/neander-resume` — Find a session and get the resume command (cross-machine support)
+- `/neander-search` — Search across sessions by keyword, branch, file, date, commit, or natural language
 - `/neander-redact` — Scan transcripts for secrets and PII before sharing
 
 All session commands accept arguments to target different sessions:
@@ -215,6 +216,7 @@ scripts/
   neander-session-stats.md /neander-session-stats
   neander-rewind.md        /neander-rewind
   neander-resume.md        /neander-resume (with cross-machine restore)
+  neander-search.md        /neander-search
   neander-redact.md        /neander-redact
 
 hooks/

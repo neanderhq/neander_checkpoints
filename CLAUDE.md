@@ -21,6 +21,7 @@ scripts/                — Core logic (Python + Bash)
   neander-session-stats.md — /neander-session-stats: tokens, costs, duration
   neander-rewind.md        — /neander-rewind: list and restore checkpoints
   neander-resume.md        — /neander-resume: resume session (cross-machine)
+  neander-search.md        — /neander-search: search sessions by keyword/branch/file/date/commit
   neander-redact.md        — /neander-redact: scan and redact secrets
 
 hooks/                  — Installation and config
