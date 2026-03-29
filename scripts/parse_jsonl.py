@@ -648,20 +648,44 @@ if __name__ == "__main__":
                 print("No matching checkpoints found.")
             else:
                 print(f"Found {len(results)} matching checkpoint(s):\n")
+
+                # Table format
+                rows = []
                 for r in results:
-                    sid = r.session_id[:12]
                     ts = r.first_timestamp.split("T")[0] if r.first_timestamp else "?"
+                    tokens_k = f"{r.total_tokens / 1000:.1f}k"
+                    prompt = r.first_prompt.replace("\n", " ")[:40] or ""
                     reasons = " · ".join(r.match_reasons)
-                    prompt = r.first_prompt.replace("\n", " ")[:80]
+                    rows.append((
+                        r.session_id[:8],
+                        r.branch or "",
+                        ts,
+                        tokens_k,
+                        prompt,
+                    ))
 
-                    print(f"  {sid}...  {ts}  {r.branch or 'unknown'}")
-                    print(f"  > \"{prompt}\"")
-                    print(f"  {reasons}  ·  {r.total_tokens:,} tokens")
+                headers = ("Session", "Branch", "Date", "Tokens", "Topic")
+                widths = [len(h) for h in headers]
+                for row in rows:
+                    for i, cell in enumerate(row):
+                        widths[i] = max(widths[i], len(cell))
+                def fmt(cells):
+                    return "  ".join(cell.ljust(widths[i]) for i, cell in enumerate(cells))
+                print(fmt(headers))
+                print("  ".join("-" * w for w in widths))
+                for row in rows:
+                    print(fmt(row))
 
-                    for match in r.keyword_matches[:3]:
-                        print(f"    [{match.role[:4]}] {match.snippet}")
-
+                # Show keyword snippets below the table if any
+                has_snippets = any(r.keyword_matches for r in results)
+                if has_snippets:
                     print()
+                    print("Keyword matches:")
+                    for r in results:
+                        if r.keyword_matches:
+                            print(f"  {r.session_id[:8]}:")
+                            for match in r.keyword_matches[:3]:
+                                print(f"    [{match.role[:4]}] {match.snippet}")
         sys.exit(0)
 
     if args.command == "status":
