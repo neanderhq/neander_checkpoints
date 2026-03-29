@@ -597,15 +597,39 @@ if __name__ == "__main__":
         if args.json:
             print(json.dumps([asdict(e) for e in entries_list], default=str, indent=2))
         else:
+            # Build formatted table
+            rows = []
             for e in entries_list:
                 ts = e.first_timestamp
                 date_str = ts.split("T")[0] if ts and "T" in ts else "?"
-                tokens_k = e.total_tokens / 1000
-                print(f"{e.model} · {e.session_id[:8]}")
-                print(f"> \"{e.first_prompt}\"")
-                print(f"{e.branch} · {date_str} · {tokens_k:.1f}k tokens · {e.files_modified} files")
+                tokens_k = f"{e.total_tokens / 1000:.1f}k"
+                model_short = e.model.replace("claude-", "").replace("-4-6", "") if e.model else ""
+                prompt = e.first_prompt[:40] or "(empty)"
+                rows.append((
+                    f"{e.session_id[:8]} ({model_short})",
+                    prompt,
+                    e.branch,
+                    date_str,
+                    tokens_k,
+                    str(e.files_modified),
+                ))
+
+            if rows:
+                headers = ("Session", "Topic", "Branch", "Date", "Tokens", "Files")
+                # Calculate column widths
+                widths = [len(h) for h in headers]
+                for row in rows:
+                    for i, cell in enumerate(row):
+                        widths[i] = max(widths[i], len(cell))
+
+                def fmt_row(cells):
+                    return "  ".join(cell.ljust(widths[i]) for i, cell in enumerate(cells))
+
+                print(fmt_row(headers))
+                print("  ".join("-" * w for w in widths))
+                for row in rows:
+                    print(fmt_row(row))
                 print()
-            if entries_list:
                 print(f"To resume: claude --resume {entries_list[0].session_id}")
         sys.exit(0)
 

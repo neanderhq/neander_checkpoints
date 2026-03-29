@@ -3,10 +3,18 @@ description: Show active and recent Claude Code sessions for this project. Use w
 ---
 # Session status
 
-Run this single command and display the output:
+## Step 1: Run status command
 
 ```
 python3 __SCRIPTS_DIR__/parse_jsonl.py status --project <current working directory>
 ```
+
+## Step 2: Output verbatim
+
+Copy the ENTIRE output from step 1 and output it as a markdown code block.
+
+**IMPORTANT — DO NOT IGNORE:**
+- **DO NOT REFORMAT** into a different table style. The script outputs a formatted table — show it exactly as-is.
+- **DO NOT ADD COMMENTARY.** No analysis, no suggestions, just the table.
 
 $ARGUMENTS
