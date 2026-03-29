@@ -27,7 +27,7 @@ for f in "$REPO_ROOT/scripts/"*; do
 done
 
 # Copy skills
-for skill_dir in "$REPO_ROOT/.claude/skills/neander-"*; do
+for skill_dir in "$REPO_ROOT/skills/neander-"*; do
     name="$(basename "$skill_dir")"
     mkdir -p "$BUNDLED/skills/$name"
     cp "$skill_dir/SKILL.md" "$BUNDLED/skills/$name/"
