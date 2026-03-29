@@ -1,15 +1,15 @@
 ---
-description: View a condensed session transcript showing the conversation flow. Use when the user wants to see what happened in a session, view the conversation history, or read the transcript.
+description: View a condensed transcript showing the conversation flow for a checkpoint. Use when the user wants to see what happened in a checkpoint or session, view the conversation history, or read the transcript. Accepts checkpoint IDs (16-char hex) or session IDs (UUIDs).
 ---
-# View condensed session transcript
+# View condensed transcript
 
 ## Step 1: Generate transcript
 
 ```
-python3 __SCRIPTS_DIR__/parse_jsonl.py transcript --session <session_id_or_path>
+python3 __SCRIPTS_DIR__/parse_jsonl.py transcript --session <checkpoint_id_or_session_id_or_path>
 ```
 
-The `--session` flag accepts a full file path, a full session ID, or a partial session ID.
+The `--session` flag accepts a checkpoint ID (16-char hex), a full session ID (UUID), a partial ID, or a full file path.
 
 If the user said "current", use your own session ID.
 If the user said "list", run `python3 __SCRIPTS_DIR__/parse_jsonl.py list --project <current working directory>` and ask the user to pick.

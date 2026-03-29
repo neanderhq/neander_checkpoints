@@ -1,12 +1,12 @@
 # neander_code_sessions
 
-Claude Code session management toolkit — checkpoints, summaries, redaction, and rewind built entirely with Claude Code hooks, skills, and scripts.
+Claude Code checkpoint management toolkit — checkpoints, summaries, redaction, and rewind built entirely with Claude Code hooks, skills, and scripts.
 
 ## Project structure
 
 ```
 scripts/                — Core logic (Python + Bash)
-  parse_jsonl.py        — JSONL parser: list sessions, extract messages/tools/tokens/files/snapshots
+  parse_jsonl.py        — JSONL parser: list checkpoints, extract messages/tools/tokens/files/snapshots
   checkpoint.sh         — Save session(s) to neander/checkpoints/v1 orphan branch, auto-push
   save_summary.sh       — Persist AI summary JSON into checkpoint metadata
   restore.sh            — Fetch session transcript from remote for cross-machine resume
@@ -15,12 +15,12 @@ scripts/                — Core logic (Python + Bash)
   detect_commit.sh      — Hook: detect git commit → trigger link_commit + checkpoint
 
 .claude/skills/         — Skills (auto-invoked by Claude based on conversation context)
-  neander-status/          — /neander-status: active and recent sessions
+  neander-status/          — /neander-status: recent checkpoints overview
   neander-search/          — /neander-search: search by keyword/branch/file/date/commit
   neander-transcript/      — /neander-transcript: condensed transcript
   neander-summarize/       — /neander-summarize: AI summary with caching
   neander-session-stats/   — /neander-session-stats: tokens, costs, duration
-  neander-resume/          — /neander-resume: resume session (cross-machine)
+  neander-resume/          — /neander-resume: resume from checkpoint (cross-machine)
   neander-rewind/          — /neander-rewind: list and restore checkpoints
   neander-redact/          — /neander-redact: scan and redact secrets (user-invoked only)
 
@@ -32,11 +32,11 @@ hooks/                  — Installation and config
 
 ## Checkpoint format (neander/checkpoints/v1)
 
-Stored on a versioned orphan branch. Each checkpoint is sharded:
+Stored on a versioned orphan branch. Each checkpoint is sharded by its 16-char hex ID:
 
 ```
 <id[:2]>/<id[2:]>/
-  metadata.json                    — id, session_ids[], commit_sha, merged_files[], summary
+  metadata.json                    — checkpoint_id, session_ids[], commit_sha, merged_files[], summary
   transcript-<session-id>.jsonl    — one per session (multi-session support)
 ```
 
@@ -65,8 +65,8 @@ Uninstall:
 3. `detect_commit.sh` also runs `link_commit.sh` to add Claude-Session trailer to the commit
 
 ### Cross-machine resume
-1. User runs `/neander-resume <session-id>` on machine B
-2. Session not found locally → `restore.sh` fetches `neander/checkpoints/v1` from remote
+1. User runs `/neander-resume <checkpoint-id>` on machine B
+2. Checkpoint looked up → session ID extracted → session not found locally → `restore.sh` fetches from remote
 3. Finds session in index.log or metadata, extracts transcript to `~/.claude/projects/`
 4. User runs `claude --resume <session-id>`
 
@@ -80,7 +80,7 @@ Uninstall:
 
 ```bash
 python3 scripts/parse_jsonl.py list
-python3 scripts/parse_jsonl.py stats --session <path>
-python3 scripts/parse_jsonl.py transcript --session <path>
+python3 scripts/parse_jsonl.py stats --session <checkpoint-id>
+python3 scripts/parse_jsonl.py transcript --session <checkpoint-id>
 python3 scripts/redact.py --check <path>
 ```

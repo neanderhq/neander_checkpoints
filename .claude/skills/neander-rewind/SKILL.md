@@ -1,5 +1,5 @@
 ---
-description: List checkpoints and restore files to a previous state. Use when the user wants to go back, undo changes, restore a previous version, or rewind to an earlier point.
+description: List checkpoints and restore files to a previous state. Use when the user wants to go back, undo changes, restore a previous version, or rewind to an earlier point. Accepts checkpoint IDs (16-char hex) or commit SHAs.
 ---
 # Rewind to a session checkpoint
 

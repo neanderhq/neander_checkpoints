@@ -1,9 +1,9 @@
 ---
-description: Search across Claude Code sessions by keyword, branch, file, date, commit, or natural language. Use when the user asks about previous work, what they did, which session touched a file, or anything about past coding sessions.
+description: Search across Claude Code checkpoints by keyword, branch, file, date, commit, or natural language. Use when the user asks about previous work, what they did, which checkpoint touched a file, or anything about past coding activity.
 ---
-# Search sessions
+# Search checkpoints
 
-Search across all Claude Code sessions for this project by keyword, branch, file, date, or commit.
+Search across all Claude Code checkpoints for this project by keyword, branch, file, date, or commit.
 
 ## Arguments
 
@@ -33,19 +33,19 @@ Available flags:
 
 ## Semantic re-ranking
 
-If the user's query is conversational or vague (e.g., "the session where I refactored the database layer"), the keyword search may return too many or imprecise results. In that case:
+If the user's query is conversational or vague (e.g., "the checkpoint where I refactored the database layer"), the keyword search may return too many or imprecise results. In that case:
 
 1. Run a broad search (use the most distinctive word as `--keyword`, or use `--date-from`/`--branch` if mentioned)
 2. For the top results, read their first prompts and match snippets
-3. Use your judgment to rank which sessions are most relevant to what the user is actually asking about
+3. Use your judgment to rank which checkpoints are most relevant to what the user is actually asking about
 4. Present only the most relevant results, with a brief explanation of why each matches
 
-If no structured filters can be extracted from the query, fall back to listing recent sessions and scanning their first prompts for relevance.
+If no structured filters can be extracted from the query, fall back to listing recent checkpoints and scanning their first prompts for relevance.
 
 ## Follow-up
 
 After showing results, offer:
-- `/neander-transcript <session-id>` to view a specific session
-- `/neander-summarize <session-id>` to summarize it
+- `/neander-transcript <checkpoint-id>` to view a specific checkpoint's transcript
+- `/neander-summarize <checkpoint-id>` to summarize it
 
 $ARGUMENTS

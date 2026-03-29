@@ -2,7 +2,7 @@
 
 ## /neander-status
 
-Shows recent sessions for the current project at a glance.
+Shows recent checkpoints for the current project at a glance.
 
 ```
 > /neander-status
@@ -10,22 +10,22 @@ Shows recent sessions for the current project at a glance.
 Project: neander_backend · Branch: feat/attachments
 Checkpoints: enabled
 
-Recent Sessions
+Recent Checkpoints
 
-claude-opus-4-6 · 0647b6e9
+a3f8b9c1d2e4  claude-opus-4-6
 > "Implement the following plan: Two Chat Streaming..."
 refactor/unify-intake · 5d ago · 45.2k tokens
 
-claude-opus-4-6 · 508dd1d0
+508dd1d0e9f2  claude-opus-4-6
 > "Fix the WebSocket reconnection bug where messages..."
 feat/ws-reliability · 6d ago · 128.7k tokens
 
-claude-opus-4-6 · b3ced0ec
+b3ced0eca267  claude-opus-4-6
 > "Refactor the intake service to use the new unified..."
 refactor/unify-intake · 6d ago · 89.3k tokens
 
-To resume: claude --resume 0647b6e9-6231-422f-8f9b-f14a4300becd
-To view transcript: /neander-transcript 0647b6e9
+To view transcript: /neander-transcript a3f8b9c1d2e4
+To view stats: /neander-session-stats a3f8b9c1d2e4
 ```
 
 ---
@@ -65,16 +65,16 @@ To view transcript: /neander-transcript 0647b6e9
 ```
 > /neander-transcript list
 
-  0647b6e9-623...  2026-03-22 18:15    1780.1KB
-  b3ced0ec-a26...  2026-03-22 17:51    5943.4KB
-  508dd1d0-e9f...  2026-03-26 11:49   32846.7KB
+  a3f8b9c1d2e4  2026-03-22 18:15    1780.1KB
+  b3ced0eca267  2026-03-22 17:51    5943.4KB
+  508dd1d0e9f2  2026-03-26 11:49   32846.7KB
 
-Which session? > 0647b6e9
+Which checkpoint? > a3f8b9c1d2e4
 ```
 
-### Filter by session ID
+### Filter by checkpoint ID
 ```
-> /neander-transcript 508dd1d0
+> /neander-transcript 508dd1d0e9f2
 
 --- 2026-03-26 ---
 
@@ -87,9 +87,9 @@ Which session? > 0647b6e9
 ## /neander-summarize
 
 ```
-> /neander-summarize 0647b6e9
+> /neander-summarize a3f8b9c1d2e4
 
-Session: delightful-noodling-sprout (0647b6e9)
+Checkpoint: a3f8b9c1d2e45678 (delightful-noodling-sprout)
 Branch: refactor/unify-intake-service-and-models
 Duration: 12:21 → 12:45 (24 minutes)
 Tokens: 4,419 (34 in / 4,385 out)
@@ -129,8 +129,9 @@ window, and upserts use MongoDB arrayFilters for atomic operations.
 ## /neander-session-stats
 
 ```
-> /neander-session-stats current
+> /neander-session-stats a3f8b9c1d2e4
 
+Checkpoint: a3f8b9c1d2e45678
 Session:  0647b6e9-6231-422f-8f9b-f14a4300becd
 Slug:     delightful-noodling-sprout
 Branch:   refactor/unify-intake-service-and-models
@@ -154,12 +155,13 @@ Snapshots: 6 checkpoints
 
 ## /neander-resume
 
-### Most recent session
+### Most recent checkpoint
 ```
 > /neander-resume
 
-Most recent session for this project:
+Most recent checkpoint for this project:
 
+Checkpoint: 508dd1d0e9f24a3b
 Session:  508dd1d0-e9f2-4a3b-9c1d-7f8e6a5b4c3d
 Branch:   feat/ws-reliability
 Last prompt: "Fix the WebSocket reconnection bug where messages from..."
@@ -175,15 +177,15 @@ To resume:
 ```
 > /neander-resume feat/attachments
 
-Found 2 sessions on feat/attachments:
+Found 2 checkpoints on feat/attachments:
 
-1. a79e08a0 — "Implement attachment.ts types, useAttachments hook..."
+1. a79e08a00145 — "Implement attachment.ts types, useAttachments hook..."
    3h session, ended 1d ago, 89.3k tokens
 
-2. 7b6d0881 — "Fix drag-and-drop not working on Safari..."
+2. 7b6d088112ab — "Fix drag-and-drop not working on Safari..."
    45min session, ended 1d ago, 12.1k tokens
 
-Which session? > 1
+Which checkpoint? > 1
 
 To resume:
   claude --resume a79e08a0-0145-4b2c-8d3e-9f7a6c5b4e2d
@@ -229,15 +231,15 @@ To resume the session: claude --resume abc123-session-id
 ```
 > /neander-search replay
 
-Found 4 matching session(s):
+Found 4 matching checkpoint(s):
 
-  508dd1d0-e9f...  2026-03-22  refactor/unify-intake
+  508dd1d0e9f2  2026-03-22  refactor/unify-intake
   > "Fix the WebSocket reconnection bug where messages..."
   keyword: 30 matches  ·  219,855 tokens
     [user] ...backend currently replays message.created and message.delta...
     [assi] ...the replay infrastructure already exists...
 
-  0647b6e9-623...  2026-03-22  refactor/unify-intake
+  a3f8b9c1d2e4  2026-03-22  refactor/unify-intake
   > "Implement the following plan: Two Chat Streaming..."
   keyword: 5 matches  ·  4,419 tokens
     [assi] ..._needs_replay() now returns True for any assistant message...
@@ -245,40 +247,40 @@ Found 4 matching session(s):
 
 ### By file
 ```
-> /neander-search which session edited message_repository.py
+> /neander-search which checkpoint edited message_repository.py
 
-Found 5 matching session(s):
+Found 5 matching checkpoint(s):
 
-  c5f539a7-d71...  2026-03-22  refactor/unify-intake
+  c5f539a7d71b  2026-03-22  refactor/unify-intake
   > "Fix the two-step upsert race condition..."
   files: modules/chat/repositories/message_repository.py  ·  19,466 tokens
 ```
 
 ### Natural language
 ```
-> /neander-search the session where I fixed WebSocket reconnection bugs last week
+> /neander-search the checkpoint where I fixed WebSocket reconnection bugs last week
 
-Based on your query, the most relevant session is:
+Based on your query, the most relevant checkpoint is:
 
-  508dd1d0-e9f...  2026-03-22  refactor/unify-intake
+  508dd1d0e9f2  2026-03-22  refactor/unify-intake
   > "Fix the WebSocket reconnection bug where messages from previous..."
   219,855 tokens · 3h session
 
-  This session addressed WebSocket reconnection issues including
+  This checkpoint addressed WebSocket reconnection issues including
   message replay, cross-conversation leaking, and false disconnect
   indicators.
 
-  /neander-transcript 508dd1d0 to view full transcript
-  /neander-summarize 508dd1d0 to see summary
+  /neander-transcript 508dd1d0e9f2 to view full transcript
+  /neander-summarize 508dd1d0e9f2 to see summary
 ```
 
 ### Combined filters
 ```
 > /neander-search OAuth on feat/auth since March 20
 
-Found 2 matching session(s):
+Found 2 matching checkpoint(s):
 
-  abc123...  2026-03-21  feat/auth
+  a1b2c3d4e5f6  2026-03-21  feat/auth
   > "Add OAuth callback handler..."
   keyword: 12 matches · branch: feat/auth · date: 2026-03-21  ·  34,500 tokens
 ```
