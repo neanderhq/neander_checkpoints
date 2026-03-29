@@ -1,0 +1,23 @@
+[project]
+name = "neander-checkpoints"
+version = "0.1.0"
+description = "Checkpoint management for Claude Code sessions"
+requires-python = ">=3.10"
+license = "MIT"
+
+[project.scripts]
+neander-checkpoints = "neander_checkpoints.cli:main"
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+neander_checkpoints = [
+    "bundled/scripts/*",
+    "bundled/skills/**/*",
+    "bundled/hooks/*",
+]
