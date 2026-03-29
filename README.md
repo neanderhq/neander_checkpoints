@@ -167,70 +167,26 @@ neander/checkpoints/v1/
 ## Install
 
 ```bash
-git clone git@github.com:neanderhq/neander_checkpoints.git ~/checkouts/neander_checkpoints
-cd ~/checkouts/neander_checkpoints
+pip install neander-checkpoints
 ```
 
-Install into any project:
+Then in any project:
 
 ```bash
-./hooks/install.sh /path/to/project
+cd /path/to/project
+neander-checkpoints install
 ```
 
-That's it. The installer copies scripts, skills, hooks, and permissions into the project's `.claude/` directory. Everything is self-contained — anyone who clones the repo gets it working out of the box.
-
-```bash
-# Or install globally (hooks fire in all sessions)
-./hooks/install.sh --global
-```
+That's it. The installer validates prerequisites (git repo, Claude Code, Python 3.10+), then copies scripts, skills, hooks, and permissions into the project's `.claude/` directory. Everything is self-contained — anyone who clones the repo gets it working out of the box.
 
 ### What gets installed
 
-| | Scripts | Skills | Hooks + Permissions | Pre-push | CLAUDE.md |
-|---|---|---|---|---|---|
-| Project | `<path>/.claude/scripts/` | `<path>/.claude/skills/` | `<path>/.claude/settings.json` | `<path>/.git/hooks/` | appended |
-| Global | `~/.claude/scripts/` | `~/.claude/skills/` | `~/.claude/settings.json` | skipped | appended |
-
 - **Scripts** — JSONL parser, checkpoint creator, secret redaction, session restore
-- **Skills** — 8 auto-invoked skills that Claude triggers based on conversation context
+- **Skills** — 6 auto-invoked skills that Claude triggers based on conversation context
 - **Hooks** — `Stop` and `PostToolUse:Bash` hooks for automatic checkpointing and commit linking
 - **Permissions** — auto-allow rules so scripts run without approval prompts
 - **CLAUDE.md** — instructions telling Claude when to proactively use checkpoint tools
 - **Pre-push hook** — redacts secrets from transcripts before they leave your machine
-
-### Uninstall
-
-```bash
-./hooks/uninstall.sh /path/to/project
-./hooks/uninstall.sh --global
-```
-
-## Project structure
-
-```
-scripts/
-  parse_jsonl.py         JSONL parser (checkpoint-centric: list, search, status, stats, transcript — reads from git branch, --fetch for remote)
-  checkpoint.sh          Save session to orphan branch (multi-session, auto-push)
-  save_summary.sh        Persist AI summary into checkpoint metadata
-  restore.sh             Fetch transcript from remote for cross-machine resume
-  redact.py              3-layer secret redaction
-  link_commit.sh         Add Claude-Session trailer to commits
-  detect_commit.sh       Hook: detect git commit → link + checkpoint
-  on_stop.sh             Hook: checkpoint on session stop
-
-.claude/skills/          Auto-invoked by Claude based on conversation context
-  neander-status/        Active sessions + recent checkpoints
-  neander-search/        Search by keyword, branch, file, date, commit
-  neander-transcript/    Condensed transcript view
-  neander-summarize/     AI summary with caching
-  neander-session-stats/ Token usage, costs, duration
-  neander-redact/        Redact secrets (user-invoked only)
-
-hooks/
-  hooks_config.json      Hook definitions template
-  install.sh             Installer (project or global)
-  uninstall.sh           Clean removal
-```
 
 ## Requirements
 

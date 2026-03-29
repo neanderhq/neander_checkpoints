@@ -775,12 +775,19 @@ def search_checkpoints(keyword: str = None, branch: str = None,
             keyword_matches = []
             if keyword:
                 messages = extract_messages(entries)
-                keyword_lower = keyword.lower()
+                # Split into words — all must match somewhere in the transcript
+                words = keyword.lower().split()
+                all_text = " ".join(m.text.lower() for m in messages if m.role in ("user", "assistant"))
+                if not all(w in all_text for w in words):
+                    continue
+
+                # Find snippet matches for the most distinctive word (longest)
+                best_word = max(words, key=len)
                 for msg in messages:
-                    if msg.role in ("user", "assistant") and keyword_lower in msg.text.lower():
-                        idx = msg.text.lower().find(keyword_lower)
+                    if msg.role in ("user", "assistant") and best_word in msg.text.lower():
+                        idx = msg.text.lower().find(best_word)
                         start = max(0, idx - 40)
-                        end = min(len(msg.text), idx + len(keyword) + 40)
+                        end = min(len(msg.text), idx + len(best_word) + 40)
                         snippet = msg.text[start:end].replace("\n", " ").strip()
                         if start > 0:
                             snippet = "..." + snippet
