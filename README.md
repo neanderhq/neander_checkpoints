@@ -68,8 +68,8 @@ Current: 17e8f125 · opus · feat/impl-tasks-from-td · 0.4k tokens · 0 files
 Checkpoint    Commit    Session   Date              Files  Topic
 ------------  --------  --------  ----------------  -----  -----
 dfe7c7132205  70e684cf  37252de3  2026-03-28 13:20  9      Simplify the generate_tasks flow...
-b4d88d5d4fe9  70e684cf  37252de3  2026-03-28 13:20  9      (no summary)
-7b02e43d74db  67ff5c5c  37252de3  2026-03-28 13:18  9      (no summary)
+b4d88d5d4fe9  70e684cf  37252de3  2026-03-28 13:20  9
+7b02e43d74db  67ff5c5c  37252de3  2026-03-28 13:18  9
 ```
 
 ### Search

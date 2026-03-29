@@ -3,8 +3,6 @@ description: Search across Claude Code checkpoints by keyword, branch, file, dat
 ---
 # Search checkpoints
 
-Search across all Claude Code checkpoints for this project by keyword, branch, file, date, or commit.
-
 ## Arguments
 
 `$ARGUMENTS` is a natural language query. Parse it to extract filters:
@@ -15,37 +13,28 @@ Search across all Claude Code checkpoints for this project by keyword, branch, f
 - **Date references**: "last week", "yesterday", "since March 20" → `--date-from` / `--date-to`. Convert relative dates to YYYY-MM-DD.
 - **Commit references**: anything that looks like a SHA → `--commit`
 
-Multiple filters can be combined — they are ANDed together.
+If no query is provided, use `--date-from` with a recent date (last 7 days).
 
-## Running the search
+## Step 1: Run search
 
 ```
 python3 __SCRIPTS_DIR__/parse_jsonl.py search --project <current working directory> [filters]
 ```
 
-Available flags:
-- `--keyword <text>` or `-k <text>`
-- `--branch <name>` or `-b <name>`
-- `--file <path>` or `-f <path>`
-- `--date-from <YYYY-MM-DD>`
-- `--date-to <YYYY-MM-DD>`
-- `--commit <sha>`
+Available flags: `--keyword`, `--branch`, `--file`, `--date-from`, `--date-to`, `--commit`
 
-## Semantic re-ranking
+## Step 2: Output verbatim
 
-If the user's query is conversational or vague (e.g., "the checkpoint where I refactored the database layer"), the keyword search may return too many or imprecise results. In that case:
+Copy the ENTIRE output from step 1 and output it as a markdown code block.
 
-1. Run a broad search (use the most distinctive word as `--keyword`, or use `--date-from`/`--branch` if mentioned)
-2. For the top results, read their first prompts and match snippets
-3. Use your judgment to rank which checkpoints are most relevant to what the user is actually asking about
-4. Present only the most relevant results, with a brief explanation of why each matches
+**IMPORTANT — DO NOT IGNORE THESE RULES:**
+- **DO NOT REFORMAT** into a table. Show the script output exactly as-is.
+- **DO NOT SUMMARIZE.** Show all results, not a subset.
+- **DO NOT ADD COMMENTARY** before the results.
+- **USE A CODE BLOCK.** Wrap the output in triple backticks.
 
-If no structured filters can be extracted from the query, fall back to listing recent checkpoints and scanning their first prompts for relevance.
-
-## Follow-up
-
-After showing results, offer:
-- `/neander-transcript <checkpoint-id>` to view a specific checkpoint's transcript
-- `/neander-summarize <checkpoint-id>` to summarize it
+After the code block, you may offer follow-up suggestions:
+- `/neander-transcript <checkpoint-id>` to view a transcript
+- `/neander-summarize <checkpoint-id>` to summarize
 
 $ARGUMENTS

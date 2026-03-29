@@ -645,9 +645,9 @@ if __name__ == "__main__":
             print(json.dumps([asdict(r) for r in results], default=str, indent=2))
         else:
             if not results:
-                print("No matching sessions found.")
+                print("No matching checkpoints found.")
             else:
-                print(f"Found {len(results)} matching session(s):\n")
+                print(f"Found {len(results)} matching checkpoint(s):\n")
                 for r in results:
                     sid = r.session_id[:12]
                     ts = r.first_timestamp.split("T")[0] if r.first_timestamp else "?"
@@ -726,7 +726,7 @@ if __name__ == "__main__":
             for cp in checkpoints[:args.limit]:
                 date_str = cp.timestamp.split("T")[0] if "T" in cp.timestamp else "?"
                 time_str = cp.timestamp.split("T")[1][:5] if "T" in cp.timestamp else ""
-                topic = cp.intent[:45] if cp.intent else "(no summary)"
+                topic = cp.intent[:45] if cp.intent else ""
                 files = str(len(cp.merged_files)) if cp.merged_files else "-"
                 cp_rows.append((
                     cp.checkpoint_id[:12],
