@@ -6,6 +6,7 @@ import os
 import sys
 import tempfile
 from datetime import datetime
+from unittest.mock import patch, MagicMock
 
 import pytest
 
@@ -13,13 +14,14 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 from parse_jsonl import (
     Message, SessionFile, SessionMetadata, TokenUsage, FileSnapshot,
-    SessionData, MessageCounts, ToolCall, SearchResult, KeywordMatch,
-    StatusEntry, CheckpointInfo,
+    CheckpointData, SessionData, MessageCounts, ToolCall, SearchResult, KeywordMatch,
+    CheckpointInfo, CHECKPOINT_BRANCH,
     _encode_project_path, _strip_injected_tags, _tool_detail,
-    parse_jsonl, extract_messages, extract_tool_calls,
+    parse_jsonl, parse_jsonl_from_git, fetch_remote_checkpoints,
+    extract_messages, extract_tool_calls,
     extract_modified_files, calculate_token_usage, get_session_metadata,
     get_file_snapshots, format_condensed_transcript, session_summary_data,
-    search_sessions,
+    search_checkpoints, search_sessions, resolve_id, get_checkpoint_data,
 )
 
 
@@ -213,6 +215,75 @@ class TestParseJsonl:
             assert len(entries) == 2
         finally:
             os.unlink(f.name)
+
+
+class TestParseJsonlFromGit:
+    def test_basic(self):
+        """Test parse_jsonl_from_git reads from git show output."""
+        jsonl_content = '{"type": "user", "message": {"content": "hello"}}\n{"type": "assistant"}\n'
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = jsonl_content
+
+        with patch("parse_jsonl.subprocess.run", return_value=mock_result) as mock_run:
+            entries = parse_jsonl_from_git("06/abc123/transcript-sid.jsonl")
+            assert len(entries) == 2
+            assert entries[0]["type"] == "user"
+            mock_run.assert_called_once_with(
+                ["git", "show", f"{CHECKPOINT_BRANCH}:06/abc123/transcript-sid.jsonl"],
+                capture_output=True, text=True, timeout=10,
+            )
+
+    def test_returns_empty_on_failure(self):
+        """Test parse_jsonl_from_git returns empty list on git show failure."""
+        mock_result = MagicMock()
+        mock_result.returncode = 1
+        mock_result.stdout = ""
+
+        with patch("parse_jsonl.subprocess.run", return_value=mock_result):
+            entries = parse_jsonl_from_git("nonexistent/path.jsonl")
+            assert entries == []
+
+    def test_skips_invalid_json_lines(self):
+        """Test parse_jsonl_from_git skips invalid JSON like parse_jsonl does."""
+        jsonl_content = '{"valid": true}\nnot json\n{"also": "valid"}\n'
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = jsonl_content
+
+        with patch("parse_jsonl.subprocess.run", return_value=mock_result):
+            entries = parse_jsonl_from_git("some/path.jsonl")
+            assert len(entries) == 2
+
+    def test_returns_empty_on_exception(self):
+        """Test parse_jsonl_from_git returns empty list on subprocess exception."""
+        with patch("parse_jsonl.subprocess.run", side_effect=Exception("timeout")):
+            entries = parse_jsonl_from_git("some/path.jsonl")
+            assert entries == []
+
+
+class TestFetchRemoteCheckpoints:
+    def test_success(self):
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+
+        with patch("parse_jsonl.subprocess.run", return_value=mock_result) as mock_run:
+            assert fetch_remote_checkpoints() is True
+            mock_run.assert_called_once_with(
+                ["git", "fetch", "origin", CHECKPOINT_BRANCH, "--quiet"],
+                capture_output=True, text=True, timeout=30,
+            )
+
+    def test_failure(self):
+        mock_result = MagicMock()
+        mock_result.returncode = 1
+
+        with patch("parse_jsonl.subprocess.run", return_value=mock_result):
+            assert fetch_remote_checkpoints() is False
+
+    def test_exception(self):
+        with patch("parse_jsonl.subprocess.run", side_effect=Exception("network error")):
+            assert fetch_remote_checkpoints() is False
 
 
 class TestExtractMessages:
@@ -471,7 +542,7 @@ class TestFormatCondensedTranscript:
 # --- Tests: Session Summary Data ---
 
 class TestSessionSummaryData:
-    def test_returns_session_data(self):
+    def test_returns_checkpoint_data(self):
         entries = [
             make_user_entry("hello"),
             make_assistant_entry([
@@ -482,7 +553,8 @@ class TestSessionSummaryData:
         path = write_jsonl(entries)
         try:
             data = session_summary_data(path)
-            assert isinstance(data, SessionData)
+            assert isinstance(data, CheckpointData)
+            assert isinstance(data, SessionData)  # SessionData is alias
             assert isinstance(data.metadata, SessionMetadata)
             assert isinstance(data.token_usage, TokenUsage)
             assert isinstance(data.message_counts, MessageCounts)
@@ -521,6 +593,16 @@ class TestSerialization:
         )
         assert r.branch == "main"
         assert r.keyword_matches == []
+        assert r.checkpoint_id == ""
+
+    def test_search_result_with_checkpoint_id(self):
+        r = SearchResult(
+            session_id="abc", path="/a.jsonl", branch="main", slug="s",
+            first_timestamp="t1", last_timestamp="t2", first_prompt="hi",
+            total_tokens=100, modified="2026", match_reasons=["keyword"],
+            checkpoint_id="a3f8b9c1d2e45678",
+        )
+        assert r.checkpoint_id == "a3f8b9c1d2e45678"
 
     def test_checkpoint_info(self):
         cp = CheckpointInfo(
@@ -533,6 +615,7 @@ class TestSerialization:
         assert cp.has_summary is False
         assert cp.intent == ""
         assert cp.merged_files == []
+        assert cp.transcript_git_path == ""
 
     def test_checkpoint_info_with_summary(self):
         cp = CheckpointInfo(
@@ -543,19 +626,16 @@ class TestSerialization:
             has_summary=True,
             intent="Fix the auth bug",
             merged_files=["/a.py", "/b.py"],
+            transcript_git_path="a3/f8b9c1d2e45678/transcript-abc-123.jsonl",
         )
         assert cp.has_summary is True
         assert cp.intent == "Fix the auth bug"
         assert len(cp.merged_files) == 2
+        assert cp.transcript_git_path == "a3/f8b9c1d2e45678/transcript-abc-123.jsonl"
 
-    def test_status_entry(self):
-        e = StatusEntry(
-            session_id="abc", slug="s", branch="main", model="opus",
-            first_timestamp="t1", last_timestamp="t2", total_tokens=1000,
-            first_prompt="hello", files_modified=3,
-        )
-        assert e.total_tokens == 1000
-        assert e.files_modified == 3
+    def test_checkpoint_data_is_session_data(self):
+        """CheckpointData and SessionData should be the same class."""
+        assert CheckpointData is SessionData
 
     def test_asdict(self):
         from dataclasses import asdict
@@ -573,33 +653,188 @@ class TestSerialization:
         d = asdict(cp)
         assert d["intent"] == "Fix bug"
         assert d["has_summary"] is True
+        assert d["transcript_git_path"] == ""
+
+
+# --- Tests: resolve_id ---
+
+class TestResolveId:
+    def test_resolves_existing_file(self):
+        """File path that exists on disk should resolve to ('file', path)."""
+        f = tempfile.NamedTemporaryFile(suffix=".jsonl", delete=False)
+        f.close()
+        try:
+            source_type, source_path = resolve_id(f.name)
+            assert source_type == "file"
+            assert source_path == f.name
+        finally:
+            os.unlink(f.name)
+
+    def test_resolves_checkpoint_id(self):
+        """Checkpoint ID should resolve to ('git', transcript_git_path)."""
+        checkpoints = [
+            CheckpointInfo(
+                checkpoint_id="a3f8b9c1d2e45678",
+                session_id="sid-1234",
+                commit_sha="deadbeef",
+                timestamp="2026-03-22T12:00:00Z",
+                transcript_git_path="a3/f8b9c1d2e45678/transcript-sid-1234.jsonl",
+            ),
+        ]
+        with patch("parse_jsonl.get_all_checkpoints", return_value=checkpoints):
+            source_type, source_path = resolve_id("a3f8b9c1d2e45678")
+            assert source_type == "git"
+            assert source_path == "a3/f8b9c1d2e45678/transcript-sid-1234.jsonl"
+
+    def test_resolves_session_id(self):
+        """Session ID should resolve to latest checkpoint's transcript."""
+        checkpoints = [
+            CheckpointInfo(
+                checkpoint_id="newer_checkpoint1",
+                session_id="session-uuid-1234",
+                commit_sha="abc",
+                timestamp="2026-03-22T13:00:00Z",
+                transcript_git_path="ne/wer_checkpoint1/transcript-session-uuid-1234.jsonl",
+            ),
+            CheckpointInfo(
+                checkpoint_id="older_checkpoint1",
+                session_id="session-uuid-1234",
+                commit_sha="def",
+                timestamp="2026-03-22T12:00:00Z",
+                transcript_git_path="ol/der_checkpoint1/transcript-session-uuid-1234.jsonl",
+            ),
+        ]
+        with patch("parse_jsonl.get_all_checkpoints", return_value=checkpoints):
+            source_type, source_path = resolve_id("session-uuid-1234")
+            assert source_type == "git"
+            # newest first, so first match wins
+            assert "wer_checkpoint1" in source_path
+
+    def test_resolves_partial_checkpoint_id(self):
+        """Partial checkpoint ID should match via startswith."""
+        checkpoints = [
+            CheckpointInfo(
+                checkpoint_id="a3f8b9c1d2e45678",
+                session_id="sid-1",
+                commit_sha="dead",
+                timestamp="t",
+                transcript_git_path="a3/f8b9c1d2e45678/transcript-sid-1.jsonl",
+            ),
+        ]
+        with patch("parse_jsonl.get_all_checkpoints", return_value=checkpoints):
+            source_type, source_path = resolve_id("a3f8b9")
+            assert source_type == "git"
+            assert "f8b9c1d2e45678" in source_path
+
+    def test_resolves_partial_session_id(self):
+        """Partial session ID should match via startswith."""
+        checkpoints = [
+            CheckpointInfo(
+                checkpoint_id="cp1234567890abcd",
+                session_id="session-uuid-abcd",
+                commit_sha="dead",
+                timestamp="t",
+                transcript_git_path="cp/1234567890abcd/transcript-session-uuid-abcd.jsonl",
+            ),
+        ]
+        with patch("parse_jsonl.get_all_checkpoints", return_value=checkpoints):
+            source_type, source_path = resolve_id("session-uuid")
+            assert source_type == "git"
+
+    def test_falls_back_to_local_files(self):
+        """When nothing matches in checkpoints, falls back to local glob."""
+        with patch("parse_jsonl.get_all_checkpoints", return_value=[]):
+            with patch("glob.glob", return_value=["/home/user/.claude/projects/foo/abc123.jsonl"]):
+                source_type, source_path = resolve_id("abc123")
+                assert source_type == "file"
+                assert source_path == "/home/user/.claude/projects/foo/abc123.jsonl"
+
+    def test_returns_empty_path_when_not_found(self):
+        """When nothing matches at all, returns ('file', '')."""
+        with patch("parse_jsonl.get_all_checkpoints", return_value=[]):
+            with patch("glob.glob", return_value=[]):
+                source_type, source_path = resolve_id("nonexistent")
+                assert source_type == "file"
+                assert source_path == ""
+
+    def test_skips_checkpoints_without_transcript_path(self):
+        """Checkpoints without transcript_git_path should be skipped."""
+        checkpoints = [
+            CheckpointInfo(
+                checkpoint_id="a3f8b9c1d2e45678",
+                session_id="sid-1",
+                commit_sha="dead",
+                timestamp="t",
+                transcript_git_path="",  # no transcript path
+            ),
+        ]
+        with patch("parse_jsonl.get_all_checkpoints", return_value=checkpoints):
+            with patch("glob.glob", return_value=[]):
+                source_type, source_path = resolve_id("a3f8b9c1d2e45678")
+                assert source_path == ""
+
+
+# --- Tests: get_checkpoint_data ---
+
+class TestGetCheckpointData:
+    def test_from_file(self):
+        """get_checkpoint_data reads from file when resolve_id returns file source."""
+        entries = [
+            make_user_entry("hello"),
+            make_assistant_entry([make_text_block("response")]),
+        ]
+        path = write_jsonl(entries)
+        try:
+            with patch("parse_jsonl.resolve_id", return_value=("file", path)):
+                data = get_checkpoint_data("some-id")
+                assert isinstance(data, CheckpointData)
+                assert data.message_counts.user == 1
+                assert data.first_prompt == "hello"
+        finally:
+            os.unlink(path)
+
+    def test_from_git(self):
+        """get_checkpoint_data reads from git when resolve_id returns git source."""
+        jsonl_content = (
+            json.dumps(make_user_entry("git hello")) + "\n"
+            + json.dumps(make_assistant_entry([make_text_block("git response")])) + "\n"
+        )
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = jsonl_content
+
+        with patch("parse_jsonl.resolve_id", return_value=("git", "some/path.jsonl")):
+            with patch("parse_jsonl.subprocess.run", return_value=mock_result):
+                data = get_checkpoint_data("some-id")
+                assert isinstance(data, CheckpointData)
+                assert data.message_counts.user == 1
+                assert data.first_prompt == "git hello"
+
+    def test_empty_on_not_found(self):
+        """get_checkpoint_data returns empty data when source_path is empty."""
+        with patch("parse_jsonl.resolve_id", return_value=("file", "")):
+            data = get_checkpoint_data("nonexistent")
+            assert data.message_counts.total == 0
+            assert data.first_prompt == ""
 
 
 # --- Tests: Search ---
 
-class TestSearchSessions:
-    def _make_session_files(self, sessions):
-        """Create temp JSONL files and return paths."""
-        paths = []
-        for entries in sessions:
-            paths.append(write_jsonl(entries))
-        return paths
-
-    def test_keyword_search(self):
-        entries = [
-            make_user_entry("fix the OAuth callback bug"),
-            make_assistant_entry([make_text_block("I'll look at the OAuth handler")]),
+class TestSearchCheckpoints:
+    def _make_checkpoint_entries(self, text="hello world", session_id="test-session",
+                                  branch="main"):
+        """Create JSONL entries for a checkpoint."""
+        return [
+            make_user_entry(text, sessionId=session_id, gitBranch=branch),
+            make_assistant_entry(
+                [make_text_block(f"Response about {text}")],
+                sessionId=session_id, gitBranch=branch,
+            ),
         ]
-        path = write_jsonl(entries)
-        try:
-            # search_sessions needs find_session_files which looks at ~/.claude/projects
-            # Test the matching logic directly instead
-            from parse_jsonl import parse_jsonl as pjl, extract_messages, get_session_metadata
-            parsed = pjl(path)
-            msgs = extract_messages(parsed)
-            assert any("OAuth" in m.text for m in msgs)
-        finally:
-            os.unlink(path)
+
+    def test_search_sessions_is_alias(self):
+        """search_sessions should be the same function as search_checkpoints."""
+        assert search_sessions is search_checkpoints
 
     def test_search_result_keyword_matches(self):
         km = KeywordMatch(role="user", snippet="...fixed the OAuth bug...")
@@ -617,10 +852,112 @@ class TestSearchSessions:
                 KeywordMatch(role="user", snippet="...OAuth callback..."),
                 KeywordMatch(role="assistant", snippet="...OAuth handler..."),
             ],
+            checkpoint_id="cp123456",
         )
         assert len(r.match_reasons) == 2
         assert len(r.keyword_matches) == 2
         assert r.branch == "feat/auth"
+        assert r.checkpoint_id == "cp123456"
+
+    def test_deduplication_per_session(self):
+        """Only the latest checkpoint per session should be searched."""
+        # Two checkpoints for the same session
+        checkpoints = [
+            CheckpointInfo(
+                checkpoint_id="newer_cp_id12345",
+                session_id="session-abc",
+                commit_sha="abc",
+                timestamp="2026-03-22T13:00:00Z",
+                transcript_git_path="ne/wer_cp_id12345/transcript-session-abc.jsonl",
+            ),
+            CheckpointInfo(
+                checkpoint_id="older_cp_id12345",
+                session_id="session-abc",
+                commit_sha="def",
+                timestamp="2026-03-22T12:00:00Z",
+                transcript_git_path="ol/der_cp_id12345/transcript-session-abc.jsonl",
+            ),
+        ]
+
+        entries = self._make_checkpoint_entries("OAuth bug fix", session_id="session-abc")
+        jsonl_content = "\n".join(json.dumps(e) for e in entries) + "\n"
+
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = jsonl_content
+
+        with patch("parse_jsonl.get_all_checkpoints", return_value=checkpoints):
+            with patch("parse_jsonl.subprocess.run", return_value=mock_result):
+                with patch("parse_jsonl.find_session_files", return_value=[]):
+                    results = search_checkpoints(keyword="OAuth")
+                    # Should only have 1 result, not 2 (deduplication)
+                    assert len(results) == 1
+                    assert results[0].checkpoint_id == "newer_cp_id12345"
+
+    def test_search_includes_checkpoint_id(self):
+        """Search results should include checkpoint_id."""
+        checkpoints = [
+            CheckpointInfo(
+                checkpoint_id="cp_abc12345678",
+                session_id="session-xyz",
+                commit_sha="abc",
+                timestamp="2026-03-22T12:00:00Z",
+                transcript_git_path="cp/abc12345678/transcript-session-xyz.jsonl",
+            ),
+        ]
+
+        entries = self._make_checkpoint_entries("test content", session_id="session-xyz")
+        jsonl_content = "\n".join(json.dumps(e) for e in entries) + "\n"
+
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = jsonl_content
+
+        with patch("parse_jsonl.get_all_checkpoints", return_value=checkpoints):
+            with patch("parse_jsonl.subprocess.run", return_value=mock_result):
+                with patch("parse_jsonl.find_session_files", return_value=[]):
+                    results = search_checkpoints()
+                    assert len(results) == 1
+                    assert results[0].checkpoint_id == "cp_abc12345678"
+
+    def test_search_no_filters_returns_all(self):
+        """With no filters, all checkpoints should be returned."""
+        checkpoints = [
+            CheckpointInfo(
+                checkpoint_id="cp1_abcdef01234",
+                session_id="session-1",
+                commit_sha="aaa",
+                timestamp="2026-03-22T12:00:00Z",
+                transcript_git_path="cp/1_abcdef01234/transcript-session-1.jsonl",
+            ),
+            CheckpointInfo(
+                checkpoint_id="cp2_abcdef01234",
+                session_id="session-2",
+                commit_sha="bbb",
+                timestamp="2026-03-22T13:00:00Z",
+                transcript_git_path="cp/2_abcdef01234/transcript-session-2.jsonl",
+            ),
+        ]
+
+        entries1 = self._make_checkpoint_entries("first session", session_id="session-1")
+        entries2 = self._make_checkpoint_entries("second session", session_id="session-2")
+
+        call_count = [0]
+        def mock_run_side_effect(*args, **kwargs):
+            result = MagicMock()
+            result.returncode = 0
+            if call_count[0] == 0:
+                result.stdout = "\n".join(json.dumps(e) for e in entries1) + "\n"
+            else:
+                result.stdout = "\n".join(json.dumps(e) for e in entries2) + "\n"
+            call_count[0] += 1
+            return result
+
+        with patch("parse_jsonl.get_all_checkpoints", return_value=checkpoints):
+            with patch("parse_jsonl.subprocess.run", side_effect=mock_run_side_effect):
+                with patch("parse_jsonl.find_session_files", return_value=[]):
+                    results = search_checkpoints()
+                    assert len(results) == 2
 
 
 # --- Tests: CLI Output Formatting ---

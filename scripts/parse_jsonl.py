@@ -9,12 +9,14 @@ from Claude Code session JSONL files.
 import json
 import os
 import re
+import subprocess
 import sys
 from dataclasses import dataclass, field, asdict
 from datetime import datetime
 from pathlib import Path
 
 CLAUDE_PROJECTS_DIR = Path.home() / ".claude" / "projects"
+CHECKPOINT_BRANCH = "neander/checkpoints/v1"
 
 
 # --- Data Models ---
@@ -80,7 +82,7 @@ class MessageCounts:
 
 
 @dataclass
-class SessionData:
+class CheckpointData:
     metadata: SessionMetadata
     token_usage: TokenUsage
     modified_files: list[str]
@@ -88,6 +90,10 @@ class SessionData:
     message_counts: MessageCounts
     first_prompt: str
     messages: list[Message]
+
+
+# Keep SessionData as alias for backward compatibility
+SessionData = CheckpointData
 
 
 @dataclass
@@ -109,19 +115,19 @@ class SearchResult:
     modified: str
     match_reasons: list[str]
     keyword_matches: list[KeywordMatch] = field(default_factory=list)
+    checkpoint_id: str = ""
 
 
 @dataclass
-class StatusEntry:
+class CheckpointInfo:
+    checkpoint_id: str
     session_id: str
-    slug: str
-    branch: str
-    model: str
-    first_timestamp: str
-    last_timestamp: str
-    total_tokens: int
-    first_prompt: str
-    files_modified: int
+    commit_sha: str
+    timestamp: str
+    has_summary: bool = False
+    intent: str = ""
+    merged_files: list[str] = field(default_factory=list)
+    transcript_git_path: str = ""
 
 
 # --- Helpers ---
@@ -202,6 +208,45 @@ def parse_jsonl(filepath: str, offset: int = 0) -> list[dict]:
             except json.JSONDecodeError:
                 continue
     return lines
+
+
+def parse_jsonl_from_git(git_path: str) -> list[dict]:
+    """Parse a JSONL file from the checkpoint branch via git show.
+
+    Same parsing logic as parse_jsonl() but reads from git instead of filesystem.
+    """
+    try:
+        result = subprocess.run(
+            ["git", "show", f"{CHECKPOINT_BRANCH}:{git_path}"],
+            capture_output=True, text=True, timeout=10,
+        )
+        if result.returncode != 0:
+            return []
+    except Exception:
+        return []
+
+    lines = []
+    for line in result.stdout.split("\n"):
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            lines.append(json.loads(line))
+        except json.JSONDecodeError:
+            continue
+    return lines
+
+
+def fetch_remote_checkpoints() -> bool:
+    """Fetch the checkpoint branch from remote. Returns True if successful."""
+    try:
+        result = subprocess.run(
+            ["git", "fetch", "origin", CHECKPOINT_BRANCH, "--quiet"],
+            capture_output=True, text=True, timeout=30,
+        )
+        return result.returncode == 0
+    except Exception:
+        return False
 
 
 def extract_messages(entries: list[dict]) -> list[Message]:
@@ -388,9 +433,8 @@ def format_condensed_transcript(messages: list[Message], max_lines: int = None) 
     return output
 
 
-def session_summary_data(filepath: str) -> SessionData:
-    """Get all structured data for a session."""
-    entries = parse_jsonl(filepath)
+def _build_entries_summary(entries: list[dict]) -> CheckpointData:
+    """Build CheckpointData from parsed JSONL entries."""
     messages = extract_messages(entries)
     tokens = calculate_token_usage(entries)
     meta = get_session_metadata(entries)
@@ -400,7 +444,7 @@ def session_summary_data(filepath: str) -> SessionData:
     user_msgs = [m for m in messages if m.role == "user"]
     assistant_msgs = [m for m in messages if m.role == "assistant"]
 
-    return SessionData(
+    return CheckpointData(
         metadata=meta,
         token_usage=tokens,
         modified_files=files,
@@ -415,25 +459,193 @@ def session_summary_data(filepath: str) -> SessionData:
     )
 
 
-def search_sessions(project_path: str = None, keyword: str = None,
-                     branch: str = None, file_path: str = None,
-                     date_from: str = None, date_to: str = None,
-                     commit: str = None) -> list[SearchResult]:
-    """Search across all sessions matching any combination of filters."""
-    sessions = find_session_files(project_path)
-    results = []
+def session_summary_data(filepath: str) -> CheckpointData:
+    """Get all structured data for a session. Thin wrapper around get_checkpoint_data for file paths."""
+    entries = parse_jsonl(filepath)
+    return _build_entries_summary(entries)
 
-    for session in sessions:
+
+def get_all_checkpoints() -> list[CheckpointInfo]:
+    """Read all checkpoints from the checkpoint branch. Returns list sorted newest first.
+
+    Reads index.log once, then batch-reads metadata for each unique checkpoint.
+    Also does one git ls-tree call to populate transcript_git_path.
+    """
+    checkpoints = []
+    try:
+        result = subprocess.run(
+            ["git", "show", f"{CHECKPOINT_BRANCH}:index.log"],
+            capture_output=True, text=True, timeout=5,
+        )
+        if result.returncode != 0:
+            return []
+
+        # Parse index
+        for line in result.stdout.strip().split("\n"):
+            if not line:
+                continue
+            parts = line.split("|")
+            if len(parts) < 4:
+                continue
+            checkpoints.append(CheckpointInfo(
+                checkpoint_id=parts[0],
+                session_id=parts[1],
+                commit_sha=parts[2],
+                timestamp=parts[3],
+            ))
+
+        # Build transcript path map from git ls-tree
+        transcript_map = {}  # shard_prefix -> transcript path
         try:
-            entries = parse_jsonl(session.path)
+            tree_result = subprocess.run(
+                ["git", "ls-tree", "-r", CHECKPOINT_BRANCH, "--name-only"],
+                capture_output=True, text=True, timeout=5,
+            )
+            if tree_result.returncode == 0:
+                for fpath in tree_result.stdout.strip().split("\n"):
+                    if "/transcript-" in fpath and fpath.endswith(".jsonl"):
+                        # e.g. "06/f5256d51c2d78b/transcript-sid.jsonl"
+                        parts_path = fpath.split("/")
+                        if len(parts_path) >= 3:
+                            shard_prefix = f"{parts_path[0]}/{parts_path[1]}"
+                            transcript_map[shard_prefix] = fpath
         except Exception:
+            pass
+
+        # Read metadata for each checkpoint and populate transcript_git_path
+        for cp in checkpoints:
+            shard = f"{cp.checkpoint_id[:2]}/{cp.checkpoint_id[2:]}"
+
+            # Set transcript path from ls-tree map
+            if shard in transcript_map:
+                cp.transcript_git_path = transcript_map[shard]
+
+            try:
+                result = subprocess.run(
+                    ["git", "show", f"{CHECKPOINT_BRANCH}:{shard}/metadata.json"],
+                    capture_output=True, text=True, timeout=5,
+                )
+                if result.returncode == 0:
+                    metadata = json.loads(result.stdout)
+                    cp.merged_files = metadata.get("merged_files", [])
+                    summary = metadata.get("summary")
+                    if summary and isinstance(summary, dict):
+                        cp.has_summary = True
+                        cp.intent = summary.get("intent", "")
+            except Exception:
+                pass
+
+    except Exception:
+        pass
+
+    # Newest first
+    checkpoints.reverse()
+    return checkpoints
+
+
+def resolve_id(id_str: str) -> tuple[str, str]:
+    """Universal ID resolver. Takes any identifier and returns (source_type, source_path).
+
+    Resolution order:
+    1. Existing file path -> ("file", path)
+    2. Checkpoint ID (hex) -> look up in get_all_checkpoints() -> ("git", transcript_git_path)
+    3. Session ID (UUID) -> find latest checkpoint for that session -> ("git", transcript_git_path)
+    4. Partial match -> try checkpoint IDs first, then session IDs
+    5. Fallback -> search ~/.claude/projects/ for local file -> ("file", path)
+    """
+    # 1. File path
+    if os.path.exists(id_str):
+        return ("file", id_str)
+
+    # 2-4. Look up in checkpoints
+    checkpoints = get_all_checkpoints()
+
+    # 2. Exact checkpoint ID match
+    for cp in checkpoints:
+        if cp.checkpoint_id == id_str and cp.transcript_git_path:
+            return ("git", cp.transcript_git_path)
+
+    # 3. Exact session ID match -> find latest checkpoint (checkpoints are newest-first)
+    for cp in checkpoints:
+        if cp.session_id == id_str and cp.transcript_git_path:
+            return ("git", cp.transcript_git_path)
+
+    # 4. Partial match - checkpoint IDs first
+    for cp in checkpoints:
+        if cp.checkpoint_id.startswith(id_str) and cp.transcript_git_path:
+            return ("git", cp.transcript_git_path)
+
+    # 4b. Partial match - session IDs
+    for cp in checkpoints:
+        if cp.session_id.startswith(id_str) and cp.transcript_git_path:
+            return ("git", cp.transcript_git_path)
+
+    # 5. Fallback to local files
+    import glob as glob_module
+    matches = glob_module.glob(f"{CLAUDE_PROJECTS_DIR}/*/{id_str}*.jsonl")
+    if matches:
+        return ("file", matches[0])
+
+    return ("file", "")
+
+
+def get_checkpoint_data(id_str: str) -> CheckpointData:
+    """Get structured data for a checkpoint or session by ID.
+
+    Uses resolve_id() to find the source, then reads and processes the transcript.
+    """
+    source_type, source_path = resolve_id(id_str)
+    if not source_path:
+        return _build_entries_summary([])
+
+    if source_type == "git":
+        entries = parse_jsonl_from_git(source_path)
+    else:
+        entries = parse_jsonl(source_path)
+
+    return _build_entries_summary(entries)
+
+
+def search_checkpoints(keyword: str = None, branch: str = None,
+                       file_path: str = None, date_from: str = None,
+                       date_to: str = None, commit: str = None,
+                       project_path: str = None) -> list[SearchResult]:
+    """Search across all checkpoints matching any combination of filters.
+
+    Reads from the checkpoint branch. Deduplicates per session (only searches
+    the latest checkpoint per session to avoid duplicate results).
+    Also searches current uncheckpointed session from local file.
+    """
+    results = []
+    checkpoints = get_all_checkpoints()
+
+    # Deduplicate: only keep the latest checkpoint per session
+    # checkpoints are newest-first, so first occurrence wins
+    seen_sessions = set()
+    unique_checkpoints = []
+    for cp in checkpoints:
+        if cp.session_id not in seen_sessions:
+            seen_sessions.add(cp.session_id)
+            unique_checkpoints.append(cp)
+
+    # Search each unique checkpoint
+    for cp in unique_checkpoints:
+        if not cp.transcript_git_path:
+            continue
+
+        try:
+            entries = parse_jsonl_from_git(cp.transcript_git_path)
+        except Exception:
+            continue
+
+        if not entries:
             continue
 
         meta = get_session_metadata(entries)
         reasons = []
 
         if date_from or date_to:
-            ts = meta.first_timestamp
+            ts = meta.first_timestamp or cp.timestamp
             if not ts:
                 continue
             session_date = ts.split("T")[0]
@@ -494,122 +706,122 @@ def search_sessions(project_path: str = None, keyword: str = None,
             tokens = calculate_token_usage(entries)
 
             results.append(SearchResult(
-                session_id=session.session_id,
-                path=session.path,
+                session_id=cp.session_id,
+                path=cp.transcript_git_path,
                 branch=meta.git_branch,
                 slug=meta.slug,
                 first_timestamp=meta.first_timestamp,
                 last_timestamp=meta.last_timestamp,
                 first_prompt=first_prompt,
                 total_tokens=tokens.total_tokens,
-                modified=str(session.modified),
+                modified=cp.timestamp,
                 match_reasons=reasons,
                 keyword_matches=keyword_matches,
+                checkpoint_id=cp.checkpoint_id,
             ))
+
+    # Also search current uncheckpointed session from local files
+    try:
+        sessions = find_session_files(project_path)
+        checkpointed_session_ids = {cp.session_id for cp in checkpoints}
+        for session in sessions:
+            if session.session_id in checkpointed_session_ids:
+                continue
+            # Already have a result for this session from checkpoints
+            if session.session_id in {r.session_id for r in results}:
+                continue
+
+            try:
+                entries = parse_jsonl(session.path)
+            except Exception:
+                continue
+
+            meta = get_session_metadata(entries)
+            reasons = []
+
+            if date_from or date_to:
+                ts = meta.first_timestamp
+                if not ts:
+                    continue
+                session_date = ts.split("T")[0]
+                if date_from and session_date < date_from:
+                    continue
+                if date_to and session_date > date_to:
+                    continue
+                reasons.append(f"date: {session_date}")
+
+            if branch:
+                if branch.lower() not in meta.git_branch.lower():
+                    continue
+                reasons.append(f"branch: {meta.git_branch}")
+
+            if file_path:
+                files = extract_modified_files(entries)
+                matching = [f for f in files if file_path.lower() in f.lower()]
+                if not matching:
+                    continue
+                reasons.append(f"files: {', '.join(matching[:3])}")
+
+            if commit:
+                found = False
+                for entry in entries:
+                    if commit in json.dumps(entry):
+                        found = True
+                        break
+                if not found:
+                    continue
+                reasons.append(f"commit: {commit}")
+
+            keyword_matches = []
+            if keyword:
+                messages = extract_messages(entries)
+                keyword_lower = keyword.lower()
+                for msg in messages:
+                    if msg.role in ("user", "assistant") and keyword_lower in msg.text.lower():
+                        idx = msg.text.lower().find(keyword_lower)
+                        start = max(0, idx - 40)
+                        end = min(len(msg.text), idx + len(keyword) + 40)
+                        snippet = msg.text[start:end].replace("\n", " ").strip()
+                        if start > 0:
+                            snippet = "..." + snippet
+                        if end < len(msg.text):
+                            snippet = snippet + "..."
+                        keyword_matches.append(KeywordMatch(role=msg.role, snippet=snippet))
+                if not keyword_matches:
+                    continue
+                reasons.append(f"keyword: {len(keyword_matches)} matches")
+
+            if not any([keyword, branch, file_path, date_from, date_to, commit]):
+                reasons.append("all")
+
+            if reasons or not any([keyword, branch, file_path, date_from, date_to, commit]):
+                messages = extract_messages(entries)
+                user_msgs = [m for m in messages if m.role == "user"]
+                first_prompt = user_msgs[0].text[:100] if user_msgs else ""
+                tokens = calculate_token_usage(entries)
+
+                results.append(SearchResult(
+                    session_id=session.session_id,
+                    path=session.path,
+                    branch=meta.git_branch,
+                    slug=meta.slug,
+                    first_timestamp=meta.first_timestamp,
+                    last_timestamp=meta.last_timestamp,
+                    first_prompt=first_prompt,
+                    total_tokens=tokens.total_tokens,
+                    modified=str(session.modified),
+                    match_reasons=reasons,
+                    keyword_matches=keyword_matches,
+                    checkpoint_id="",
+                ))
+    except Exception:
+        pass
 
     return results
 
 
-@dataclass
-class CheckpointInfo:
-    checkpoint_id: str
-    session_id: str
-    commit_sha: str
-    timestamp: str
-    has_summary: bool = False
-    intent: str = ""
-    merged_files: list[str] = field(default_factory=list)
-
-
-def get_all_checkpoints() -> list[CheckpointInfo]:
-    """Read all checkpoints from the checkpoint branch. Returns list sorted newest first.
-
-    Reads index.log once, then batch-reads metadata for each unique checkpoint.
-    """
-    import subprocess
-    checkpoints = []
-    try:
-        result = subprocess.run(
-            ["git", "show", "neander/checkpoints/v1:index.log"],
-            capture_output=True, text=True, timeout=5,
-        )
-        if result.returncode != 0:
-            return []
-
-        # Parse index
-        for line in result.stdout.strip().split("\n"):
-            if not line:
-                continue
-            parts = line.split("|")
-            if len(parts) < 4:
-                continue
-            checkpoints.append(CheckpointInfo(
-                checkpoint_id=parts[0],
-                session_id=parts[1],
-                commit_sha=parts[2],
-                timestamp=parts[3],
-            ))
-
-        # Read metadata for each checkpoint
-        for cp in checkpoints:
-            shard = f"{cp.checkpoint_id[:2]}/{cp.checkpoint_id[2:]}"
-            try:
-                result = subprocess.run(
-                    ["git", "show", f"neander/checkpoints/v1:{shard}/metadata.json"],
-                    capture_output=True, text=True, timeout=5,
-                )
-                if result.returncode == 0:
-                    metadata = json.loads(result.stdout)
-                    cp.merged_files = metadata.get("merged_files", [])
-                    summary = metadata.get("summary")
-                    if summary and isinstance(summary, dict):
-                        cp.has_summary = True
-                        cp.intent = summary.get("intent", "")
-            except Exception:
-                pass
-
-    except Exception:
-        pass
-
-    # Newest first
-    checkpoints.reverse()
-    return checkpoints
-
-
-def get_cached_intent(session_id: str) -> str:
-    """Look up cached summary intent from the checkpoint branch. Returns empty string if not found."""
-    import subprocess
-    try:
-        # Find checkpoint ID from index
-        result = subprocess.run(
-            ["git", "show", "neander/checkpoints/v1:index.log"],
-            capture_output=True, text=True, timeout=5,
-        )
-        if result.returncode != 0:
-            return ""
-        # Find latest checkpoint for this session
-        match = ""
-        for line in result.stdout.strip().split("\n"):
-            if session_id in line:
-                match = line
-        if not match:
-            return ""
-        checkpoint_id = match.split("|")[0]
-        shard_dir = f"{checkpoint_id[:2]}/{checkpoint_id[2:]}"
-        # Read metadata
-        result = subprocess.run(
-            ["git", "show", f"neander/checkpoints/v1:{shard_dir}/metadata.json"],
-            capture_output=True, text=True, timeout=5,
-        )
-        if result.returncode != 0:
-            return ""
-        metadata = json.loads(result.stdout)
-        summary = metadata.get("summary")
-        if summary and isinstance(summary, dict):
-            return summary.get("intent", "")
-    except Exception:
-        pass
-    return ""
+# Keep search_sessions as alias for backward compatibility
+search_sessions = search_checkpoints
 
 
 if __name__ == "__main__":
@@ -618,7 +830,8 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Parse Claude Code session JSONL")
     parser.add_argument("command", choices=["list", "stats", "transcript", "files", "snapshots", "search", "status"])
-    parser.add_argument("--session", "-s", help="Session JSONL file path or session ID")
+    parser.add_argument("--checkpoint", "-c", dest="checkpoint", help="Checkpoint ID, session ID, or file path")
+    parser.add_argument("--session", "-s", dest="session", help="Alias for --checkpoint (backward compat)")
     parser.add_argument("--project", "-p", help="Project path filter")
     parser.add_argument("--max-lines", "-n", type=int, help="Max transcript lines")
     parser.add_argument("--json", action="store_true", help="Output as JSON")
@@ -629,10 +842,18 @@ if __name__ == "__main__":
     parser.add_argument("--date-to", help="Filter sessions to date (YYYY-MM-DD)")
     parser.add_argument("--commit", help="Filter by commit SHA")
     parser.add_argument("--limit", "-l", type=int, default=10, help="Max sessions to show (default 10)")
+    parser.add_argument("--fetch", action="store_true", help="Fetch remote checkpoints before running command")
     args = parser.parse_args()
 
+    # --session is alias for --checkpoint
+    id_arg = args.checkpoint or args.session
+
+    # Fetch remote if requested
+    if args.fetch:
+        fetch_remote_checkpoints()
+
     if args.command == "search":
-        results = search_sessions(
+        results = search_checkpoints(
             project_path=args.project,
             keyword=args.keyword,
             branch=args.branch,
@@ -647,16 +868,15 @@ if __name__ == "__main__":
             if not results:
                 print("No matching checkpoints found.")
             else:
-                print(f"Found {len(results)} matching checkpoint(s):\n")
+                print(f"Found {len(results)} result(s):\n")
 
-                # Table format
                 rows = []
                 for r in results:
                     ts = r.first_timestamp.split("T")[0] if r.first_timestamp else "?"
                     tokens_k = f"{r.total_tokens / 1000:.1f}k"
                     prompt = r.first_prompt.replace("\n", " ")[:40] or ""
-                    reasons = " · ".join(r.match_reasons)
                     rows.append((
+                        r.checkpoint_id[:12] if r.checkpoint_id else "-",
                         r.session_id[:8],
                         r.branch or "",
                         ts,
@@ -664,7 +884,7 @@ if __name__ == "__main__":
                         prompt,
                     ))
 
-                headers = ("Session", "Branch", "Date", "Tokens", "Topic")
+                headers = ("Checkpoint", "Session", "Branch", "Date", "Tokens", "Topic")
                 widths = [len(h) for h in headers]
                 for row in rows:
                     for i, cell in enumerate(row):
@@ -785,22 +1005,19 @@ if __name__ == "__main__":
                 print(f"  {s.session_id[:12]}...  {s.modified:%Y-%m-%d %H:%M}  {size_kb:>8.1f}KB  {s.project_dir}")
         sys.exit(0)
 
-    if not args.session:
-        print("Error: --session required for this command", file=sys.stderr)
+    if not id_arg:
+        print("Error: --checkpoint (or --session) required for this command", file=sys.stderr)
         sys.exit(1)
 
-    # Resolve session ID to file path if not already a path
-    if not os.path.exists(args.session):
-        matches = glob_module.glob(f"{CLAUDE_PROJECTS_DIR}/*/{args.session}*.jsonl")
-        if matches:
-            args.session = matches[0]
-        else:
-            print(f"Error: session not found: {args.session}", file=sys.stderr)
-            print(f"Searched in: {CLAUDE_PROJECTS_DIR}/*/", file=sys.stderr)
-            sys.exit(1)
+    # Use resolve_id + get_checkpoint_data for all remaining commands
+    source_type, source_path = resolve_id(id_arg)
+
+    if not source_path:
+        print(f"Error: checkpoint/session not found: {id_arg}", file=sys.stderr)
+        sys.exit(1)
 
     if args.command == "stats":
-        data = session_summary_data(args.session)
+        data = get_checkpoint_data(id_arg)
         if args.json:
             d = asdict(data)
             d.pop("messages", None)
@@ -846,11 +1063,14 @@ if __name__ == "__main__":
             print(f"Snapshots:  {len(data.snapshots)}")
 
     elif args.command == "transcript":
-        data = session_summary_data(args.session)
+        data = get_checkpoint_data(id_arg)
         print(format_condensed_transcript(data.messages, args.max_lines))
 
     elif args.command == "files":
-        entries = parse_jsonl(args.session)
+        if source_type == "git":
+            entries = parse_jsonl_from_git(source_path)
+        else:
+            entries = parse_jsonl(source_path)
         files = extract_modified_files(entries)
         if args.json:
             print(json.dumps(files, indent=2))
@@ -859,7 +1079,10 @@ if __name__ == "__main__":
                 print(f)
 
     elif args.command == "snapshots":
-        entries = parse_jsonl(args.session)
+        if source_type == "git":
+            entries = parse_jsonl_from_git(source_path)
+        else:
+            entries = parse_jsonl(source_path)
         snapshots = get_file_snapshots(entries)
         if args.json:
             print(json.dumps([asdict(s) for s in snapshots], default=str, indent=2))
