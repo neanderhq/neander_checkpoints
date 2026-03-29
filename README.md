@@ -33,7 +33,7 @@ When you need context, just ask naturally:
 |---|---|
 | "What did I do yesterday?" | Claude searches checkpoints, shows relevant results |
 | "Why did we make this change?" | Claude finds the checkpoint that touched the file, reads the transcript |
-| "Continue what I was doing on feat/attachments" | Claude finds the checkpoint and shows the resume command |
+
 | "Go back to before that change" | Claude lists checkpoints and offers to restore |
 | "How much did that checkpoint cost?" | Claude shows token usage and cost estimate |
 
@@ -50,7 +50,6 @@ All commands accept checkpoint IDs (16-char hex like `a3f8b9c1d2e4`), session ID
 | `/neander-transcript` | View the condensed conversation transcript for a checkpoint |
 | `/neander-summarize` | Generate an AI summary (intent, outcome, learnings, friction, open items) and persist it |
 | `/neander-session-stats` | Token usage, cost estimate, duration, files modified for a checkpoint |
-| `/neander-resume` | Find a checkpoint and get the `claude --resume` command (cross-machine support) |
 | `/neander-redact` | Scan a transcript for secrets and PII before sharing |
 
 ## Features
@@ -134,11 +133,9 @@ Both fixes implemented and tested.
 Checkpoints are pushed to the remote automatically. On another machine:
 
 ```
-> /neander-resume <checkpoint-id>
-# or just: "continue what I was doing on feat/attachments"
+# Fetches transcript from remote, prints: claude --resume <session-id>
 ```
 
-The restore script fetches the transcript from the remote and places it in the right location for `claude --resume`.
 
 ### Secret redaction
 
@@ -227,7 +224,6 @@ scripts/
   neander-transcript/    Condensed transcript view
   neander-summarize/     AI summary with caching
   neander-session-stats/ Token usage, costs, duration
-  neander-resume/        Resume from checkpoint (cross-machine)
   neander-redact/        Redact secrets (user-invoked only)
 
 hooks/

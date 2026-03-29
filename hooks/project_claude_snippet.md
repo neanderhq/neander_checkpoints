@@ -13,7 +13,6 @@ When the user asks about checkpoints, sessions, summaries, transcripts, or histo
 | "search checkpoints ...", "find the checkpoint where ..." | `/neander-search` |
 | "what did I do yesterday/last week" | `/neander-search` |
 | "checkpoint stats", "how much did it cost" | `/neander-session-stats` |
-| "resume ...", "continue where I left off" | `/neander-resume` |
 | "recent checkpoints", "what's been going on" | `/neander-status` |
 
 ### When to use these tools proactively

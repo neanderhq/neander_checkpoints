@@ -63,9 +63,9 @@ Uninstall:
 3. `detect_commit.sh` also runs `link_commit.sh` to add Claude-Session trailer to the commit
 
 ### Cross-machine resume
-1. User runs `/neander-resume <checkpoint-id>` on machine B
-2. Checkpoint looked up → session ID extracted → session not found locally → `restore.sh` fetches from remote
-3. Finds session in index.log or metadata, extracts transcript to `~/.claude/projects/`
+1. User runs `neander resume <checkpoint-id>` on machine B (CLI command, not a skill)
+2. Checkpoint looked up → session ID extracted → `restore.sh` fetches transcript from remote
+3. Transcript placed in `~/.claude/projects/`
 4. User runs `claude --resume <session-id>`
 
 ### AI summary caching

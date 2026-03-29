@@ -153,46 +153,6 @@ Snapshots: 6 checkpoints
 
 ---
 
-## /neander-resume
-
-### Most recent checkpoint
-```
-> /neander-resume
-
-Most recent checkpoint for this project:
-
-Checkpoint: 508dd1d0e9f24a3b
-Session:  508dd1d0-e9f2-4a3b-9c1d-7f8e6a5b4c3d
-Branch:   feat/ws-reliability
-Last prompt: "Fix the WebSocket reconnection bug where messages from..."
-Duration: 3h 42min session, ended 2d ago
-Tokens:   128,700
-Files:    8 modified
-
-To resume:
-  claude --resume 508dd1d0-e9f2-4a3b-9c1d-7f8e6a5b4c3d
-```
-
-### By branch
-```
-> /neander-resume feat/attachments
-
-Found 2 checkpoints on feat/attachments:
-
-1. a79e08a00145 — "Implement attachment.ts types, useAttachments hook..."
-   3h session, ended 1d ago, 89.3k tokens
-
-2. 7b6d088112ab — "Fix drag-and-drop not working on Safari..."
-   45min session, ended 1d ago, 12.1k tokens
-
-Which checkpoint? > 1
-
-To resume:
-  claude --resume a79e08a0-0145-4b2c-8d3e-9f7a6c5b4e2d
-```
-
----
-
 ## /neander-search
 
 ### By keyword
