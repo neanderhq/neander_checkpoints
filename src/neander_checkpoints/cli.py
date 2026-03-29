@@ -60,7 +60,7 @@ def main() -> None:
         "resume",
         help="Restore a session transcript and show the resume command",
     )
-    p_resume.add_argument("id", help="Checkpoint ID or session ID")
+    p_resume.add_argument("id", nargs="?", default=None, help="Checkpoint ID or session ID (omit to list recent)")
 
     args = parser.parse_args()
 
