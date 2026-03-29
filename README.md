@@ -57,22 +57,19 @@ All commands accept checkpoint IDs (16-char hex like `a3f8b9c1d2e4`), session ID
 
 ### Status
 
-Shows active sessions (not yet checkpointed) and recent checkpoints at a glance.
+Shows the current session and recent checkpoints at a glance.
 
 ```
-== Active Sessions (not yet checkpointed) ==
-
-Session   Model  Branch                   Tokens  Topic
---------  -----  -----------------------  ------  -----
-f6d4f073  opus   feat/impl-tasks-from-td  0.1k    (empty)
+Current: 17e8f125 · opus · feat/impl-tasks-from-td · 0.4k tokens · 0 files
+         (not yet checkpointed)
 
 == Checkpoints (18 total) ==
 
 Checkpoint    Commit    Session   Date              Files  Topic
 ------------  --------  --------  ----------------  -----  -----
 dfe7c7132205  70e684cf  37252de3  2026-03-28 13:20  9      Simplify the generate_tasks flow...
-b4d88d5d4fe9  70e684cf  37252de3  2026-03-28 13:20  9
-7b02e43d74db  67ff5c5c  37252de3  2026-03-28 13:18  9
+b4d88d5d4fe9  70e684cf  37252de3  2026-03-28 13:20  9      (no summary)
+7b02e43d74db  67ff5c5c  37252de3  2026-03-28 13:18  9      (no summary)
 ```
 
 ### Search
