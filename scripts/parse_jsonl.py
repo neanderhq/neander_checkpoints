@@ -510,48 +510,49 @@ def search_sessions(project_path: str = None, keyword: str = None,
     return results
 
 
-def get_checkpoint_info() -> dict:
-    """Read checkpoint index and metadata. Returns {session_id: {"count": N, "intent": str, ...}}.
+@dataclass
+class CheckpointInfo:
+    checkpoint_id: str
+    session_id: str
+    commit_sha: str
+    timestamp: str
+    has_summary: bool = False
+    intent: str = ""
+    merged_files: list[str] = field(default_factory=list)
 
-    Makes exactly 2 git calls: one for index.log, one ls-tree to find all metadata files,
-    then reads each metadata file from the tree (cached in git, fast).
+
+def get_all_checkpoints() -> list[CheckpointInfo]:
+    """Read all checkpoints from the checkpoint branch. Returns list sorted newest first.
+
+    Reads index.log once, then batch-reads metadata for each unique checkpoint.
     """
     import subprocess
-    info = {}
+    checkpoints = []
     try:
-        # 1. Read index
         result = subprocess.run(
             ["git", "show", "neander/checkpoints/v1:index.log"],
             capture_output=True, text=True, timeout=5,
         )
         if result.returncode != 0:
-            return {}
+            return []
+
+        # Parse index
         for line in result.stdout.strip().split("\n"):
             if not line:
                 continue
             parts = line.split("|")
             if len(parts) < 4:
                 continue
-            checkpoint_id, session_id, commit_sha, timestamp = parts[:4]
-            if session_id not in info:
-                info[session_id] = {
-                    "count": 0, "latest_checkpoint": checkpoint_id,
-                    "latest_timestamp": timestamp, "has_summary": False, "intent": "",
-                }
-            info[session_id]["count"] += 1
-            info[session_id]["latest_checkpoint"] = checkpoint_id
-            info[session_id]["latest_timestamp"] = timestamp
+            checkpoints.append(CheckpointInfo(
+                checkpoint_id=parts[0],
+                session_id=parts[1],
+                commit_sha=parts[2],
+                timestamp=parts[3],
+            ))
 
-        # 2. Batch-read metadata for all latest checkpoints in one pass
-        # Collect unique checkpoint IDs to check
-        checkpoints_to_read = {}
-        for session_id, data in info.items():
-            cp_id = data["latest_checkpoint"]
-            checkpoints_to_read[cp_id] = session_id
-
-        # Read all metadata files via a single git command
-        for cp_id, session_id in checkpoints_to_read.items():
-            shard = f"{cp_id[:2]}/{cp_id[2:]}"
+        # Read metadata for each checkpoint
+        for cp in checkpoints:
+            shard = f"{cp.checkpoint_id[:2]}/{cp.checkpoint_id[2:]}"
             try:
                 result = subprocess.run(
                     ["git", "show", f"neander/checkpoints/v1:{shard}/metadata.json"],
@@ -559,15 +560,20 @@ def get_checkpoint_info() -> dict:
                 )
                 if result.returncode == 0:
                     metadata = json.loads(result.stdout)
+                    cp.merged_files = metadata.get("merged_files", [])
                     summary = metadata.get("summary")
                     if summary and isinstance(summary, dict):
-                        info[session_id]["has_summary"] = True
-                        info[session_id]["intent"] = summary.get("intent", "")
+                        cp.has_summary = True
+                        cp.intent = summary.get("intent", "")
             except Exception:
                 pass
+
     except Exception:
         pass
-    return info
+
+    # Newest first
+    checkpoints.reverse()
+    return checkpoints
 
 
 def get_cached_intent(session_id: str) -> str:
@@ -659,93 +665,51 @@ if __name__ == "__main__":
         sys.exit(0)
 
     if args.command == "status":
-        sessions = find_session_files(args.project)
-        if not sessions:
-            print("No sessions found.")
+        checkpoints = get_all_checkpoints()
+        if not checkpoints:
+            print("No checkpoints found.")
+            print("Checkpoints are created automatically on git commits and session stops.")
             sys.exit(0)
 
-        # Load checkpoint info once
-        cp_info = get_checkpoint_info()
-
-        entries_list = []
-        cp_counts = []
-        for s in sessions[:args.limit]:
-            try:
-                data = session_summary_data(s.path)
-                user_msgs = [m for m in data.messages if m.role == "user"]
-                first_prompt = ""
-                for um in user_msgs:
-                    text = um.text.strip()
-                    if text and not text.startswith("<"):
-                        first_prompt = text[:80].replace("\n", " ")
-                        break
-                if not first_prompt and user_msgs:
-                    first_prompt = _strip_injected_tags(user_msgs[0].text)[:80].replace("\n", " ")
-
-                # Topic: cached intent > first prompt
-                si = cp_info.get(s.session_id, {})
-                topic = si.get("intent", "") or first_prompt
-
-                entries_list.append(StatusEntry(
-                    session_id=s.session_id,
-                    slug=data.metadata.slug,
-                    branch=data.metadata.git_branch,
-                    model=", ".join(data.metadata.models),
-                    first_timestamp=data.metadata.first_timestamp,
-                    last_timestamp=data.metadata.last_timestamp,
-                    total_tokens=data.token_usage.total_tokens,
-                    first_prompt=topic,
-                    files_modified=len(data.modified_files),
-                ))
-
-                # Checkpoint info for this session
-                count = si.get("count", 0)
-                has_summary = "+" if si.get("has_summary") else ""
-                cp_counts.append(f"{count}{has_summary}" if count else "-")
-            except Exception:
-                continue
-            except Exception:
-                continue
-
         if args.json:
-            print(json.dumps([asdict(e) for e in entries_list], default=str, indent=2))
+            print(json.dumps([asdict(cp) for cp in checkpoints[:args.limit]], default=str, indent=2))
         else:
-            # Build formatted table
             rows = []
-            for i, e in enumerate(entries_list):
-                ts = e.first_timestamp
-                date_str = ts.split("T")[0] if ts and "T" in ts else "?"
-                tokens_k = f"{e.total_tokens / 1000:.1f}k"
-                model_short = e.model.replace("claude-", "").replace("-4-6", "") if e.model else ""
-                topic = e.first_prompt[:40] or "(empty)"
-                cp = cp_counts[i] if i < len(cp_counts) else "-"
+            for cp in checkpoints[:args.limit]:
+                date_str = cp.timestamp.split("T")[0] if "T" in cp.timestamp else "?"
+                time_str = cp.timestamp.split("T")[1][:5] if "T" in cp.timestamp else ""
+                topic = cp.intent[:45] if cp.intent else ""
+                summary = "yes" if cp.has_summary else "-"
+                files = str(len(cp.merged_files)) if cp.merged_files else "-"
                 rows.append((
-                    f"{e.session_id[:8]} ({model_short})",
-                    cp,
+                    cp.checkpoint_id[:12],
+                    cp.commit_sha[:8],
+                    cp.session_id[:8],
+                    f"{date_str} {time_str}",
+                    files,
+                    summary,
                     topic,
-                    e.branch,
-                    date_str,
-                    tokens_k,
-                    str(e.files_modified),
                 ))
 
-            if rows:
-                headers = ("Session", "Checkpoints", "Topic", "Branch", "Date", "Tokens", "Files")
-                # Calculate column widths
-                widths = [len(h) for h in headers]
-                for row in rows:
-                    for i, cell in enumerate(row):
-                        widths[i] = max(widths[i], len(cell))
+            headers = ("Checkpoint", "Commit", "Session", "Date", "Files", "Summary", "Topic")
+            widths = [len(h) for h in headers]
+            for row in rows:
+                for i, cell in enumerate(row):
+                    widths[i] = max(widths[i], len(cell))
 
-                def fmt_row(cells):
-                    return "  ".join(cell.ljust(widths[i]) for i, cell in enumerate(cells))
+            def fmt_row(cells):
+                return "  ".join(cell.ljust(widths[i]) for i, cell in enumerate(cells))
 
-                print(fmt_row(headers))
-                print("  ".join("-" * w for w in widths))
-                for row in rows:
-                    print(fmt_row(row))
+            print(fmt_row(headers))
+            print("  ".join("-" * w for w in widths))
+            for row in rows:
+                print(fmt_row(row))
+
+            if checkpoints:
                 print()
-                print(f"To resume: claude --resume {entries_list[0].session_id}")
+                print(f"To resume latest session: claude --resume {checkpoints[0].session_id}")
+                print(f"To summarize: /neander-summarize <checkpoint_id>")
+                print(f"To view transcript: /neander-transcript <checkpoint_id>")
         sys.exit(0)
 
     if args.command == "list":
