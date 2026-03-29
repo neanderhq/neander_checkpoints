@@ -36,7 +36,20 @@ When you need context, just ask naturally:
 | "Go back to before that change" | Claude lists checkpoints and offers to restore |
 | "How much did that checkpoint cost?" | Claude shows token usage and cost estimate |
 
-You can also use slash commands explicitly: `/neander-status`, `/neander-search`, `/neander-transcript`, `/neander-summarize`, `/neander-session-stats`, `/neander-resume`, `/neander-rewind`, `/neander-redact`
+Or use slash commands explicitly:
+
+| Command | Description |
+|---|---|
+| `/neander-status` | Overview of active sessions and recent checkpoints |
+| `/neander-search` | Search checkpoints by keyword, branch, file, date, commit, or natural language |
+| `/neander-transcript` | View the condensed conversation transcript for a checkpoint |
+| `/neander-summarize` | Generate an AI summary (intent, outcome, learnings, friction, open items) and persist it |
+| `/neander-session-stats` | Token usage, cost estimate, duration, files modified for a checkpoint |
+| `/neander-resume` | Find a checkpoint and get the `claude --resume` command (cross-machine support) |
+| `/neander-rewind` | List checkpoints and restore files to a previous state |
+| `/neander-redact` | Scan a transcript for secrets and PII before sharing |
+
+All commands accept checkpoint IDs (16-char hex like `a3f8b9c1d2e4`), session IDs (UUIDs), or partial IDs.
 
 ## Install
 
