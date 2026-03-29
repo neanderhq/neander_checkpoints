@@ -988,10 +988,10 @@ if __name__ == "__main__":
 
         # --- Footer ---
         print()
-        latest_session = sessions[0].session_id if sessions else checkpoints[0].session_id
-        print(f"Resume latest: claude --resume {latest_session}")
-        print("Summarize:     /neander-summarize <checkpoint_id>")
-        print("Transcript:    /neander-transcript <checkpoint_id>")
+        latest_cp = checkpoints[0]
+        print(f"Resume:     /neander-resume {latest_cp.checkpoint_id[:12]}")
+        print("Summarize:  /neander-summarize <checkpoint_id>")
+        print("Transcript: /neander-transcript <checkpoint_id>")
 
         sys.exit(0)
 
