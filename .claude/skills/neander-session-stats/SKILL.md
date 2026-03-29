@@ -6,10 +6,10 @@ description: Show token usage, cost estimate, duration, and file stats for a che
 ## Step 1: Run stats command
 
 ```
-python3 __SCRIPTS_DIR__/parse_jsonl.py stats --session <checkpoint_id_or_session_id_or_path>
+python3 __SCRIPTS_DIR__/parse_jsonl.py stats --checkpoint <checkpoint_id_or_session_id_or_path>
 ```
 
-The `--session` flag accepts a checkpoint ID (16-char hex), a full session ID (UUID), a partial ID, or a full file path.
+The `--checkpoint` flag accepts a checkpoint ID (16-char hex), a full session ID (UUID), a partial ID, or a full file path.
 
 If the user said "current", use your own session ID from the conversation context.
 If the user said "list", run `python3 __SCRIPTS_DIR__/parse_jsonl.py list --project <current working directory>` and ask the user to pick.

@@ -17,7 +17,7 @@ Find a previous checkpoint and show the command to resume its session.
 ## Finding the checkpoint
 
 - **Most recent**: `python3 __SCRIPTS_DIR__/parse_jsonl.py list --project <current working directory>`
-- **By checkpoint ID**: `python3 __SCRIPTS_DIR__/parse_jsonl.py stats --session <checkpoint_id>`
+- **By checkpoint ID**: `python3 __SCRIPTS_DIR__/parse_jsonl.py stats --checkpoint <checkpoint_id>`
 - **By session ID**: `find __HOME__/.claude/projects -name "<session-id>.jsonl" -type f`
 - **By branch**: `python3 __SCRIPTS_DIR__/parse_jsonl.py list --project <current working directory>` then filter by branch from the stats
 
@@ -25,7 +25,7 @@ Find a previous checkpoint and show the command to resume its session.
 
 For each candidate, get stats:
 ```
-python3 __SCRIPTS_DIR__/parse_jsonl.py stats --session <checkpoint_id_or_path>
+python3 __SCRIPTS_DIR__/parse_jsonl.py stats --checkpoint <checkpoint_id_or_path>
 ```
 
 Display:

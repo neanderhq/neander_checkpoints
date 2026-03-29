@@ -26,7 +26,7 @@ git log neander/checkpoints/v1 --format="%h %s %ai" -20
 
 **Claude Code's built-in file snapshots** (from the session JSONL):
 ```
-python3 __SCRIPTS_DIR__/parse_jsonl.py snapshots --session <path>
+python3 __SCRIPTS_DIR__/parse_jsonl.py snapshots --checkpoint <path>
 ```
 
 **Git log** (commits with Claude-Session trailers):

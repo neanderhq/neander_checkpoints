@@ -34,8 +34,8 @@ Use `/tmp/neander-transcript.jsonl` as the session file. Remember to use the **c
 ## Step 1: Get stats and transcript
 
 ```
-python3 __SCRIPTS_DIR__/parse_jsonl.py stats --session <path> --json
-python3 __SCRIPTS_DIR__/parse_jsonl.py transcript --session <path>
+python3 __SCRIPTS_DIR__/parse_jsonl.py stats --checkpoint <path> --json
+python3 __SCRIPTS_DIR__/parse_jsonl.py transcript --checkpoint <path>
 ```
 
 ## Step 2: Generate, persist, and display summary — ALL IN ONE Bash command

@@ -6,7 +6,7 @@ Claude Code checkpoint management toolkit — checkpoints, summaries, redaction,
 
 ```
 scripts/                — Core logic (Python + Bash)
-  parse_jsonl.py        — JSONL parser: list checkpoints, extract messages/tools/tokens/files/snapshots
+  parse_jsonl.py        — JSONL parser: list/search/status/stats/transcript (checkpoint-centric, reads from git branch, --fetch for remote)
   checkpoint.sh         — Save session(s) to neander/checkpoints/v1 orphan branch, auto-push
   save_summary.sh       — Persist AI summary JSON into checkpoint metadata
   restore.sh            — Fetch session transcript from remote for cross-machine resume
@@ -78,9 +78,12 @@ Uninstall:
 
 ## Scripts can also be used standalone
 
+All commands read from the git checkpoint branch (`neander/checkpoints/v1`), not local files. Use `--fetch` to pull remote checkpoint data first. The primary flag is `--checkpoint`/`-c` (`--session`/`-s` still works as an alias).
+
 ```bash
 python3 scripts/parse_jsonl.py list
-python3 scripts/parse_jsonl.py stats --session <checkpoint-id>
-python3 scripts/parse_jsonl.py transcript --session <checkpoint-id>
+python3 scripts/parse_jsonl.py stats --checkpoint <checkpoint-id>
+python3 scripts/parse_jsonl.py transcript --checkpoint <checkpoint-id>
+python3 scripts/parse_jsonl.py search --project <cwd> --keyword "text" --fetch
 python3 scripts/redact.py --check <path>
 ```

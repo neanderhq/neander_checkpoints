@@ -274,6 +274,21 @@ Based on your query, the most relevant checkpoint is:
   /neander-summarize 508dd1d0e9f2 to see summary
 ```
 
+### Fetch remote checkpoints first
+```
+> /neander-search replay --fetch
+
+Fetching latest checkpoints from remote...
+
+Found 4 matching checkpoint(s):
+
+  508dd1d0e9f2  2026-03-22  refactor/unify-intake
+  > "Fix the WebSocket reconnection bug where messages..."
+  keyword: 30 matches  ·  219,855 tokens
+    [user] ...backend currently replays message.created and message.delta...
+    [assi] ...the replay infrastructure already exists...
+```
+
 ### Combined filters
 ```
 > /neander-search OAuth on feat/auth since March 20

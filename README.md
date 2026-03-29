@@ -15,6 +15,7 @@ neander_checkpoints solves this:
 - **Keep git history clean** — checkpoint data lives on a separate orphan branch, never pollutes your working tree
 - **Onboard faster** — show teammates the path from prompt to change to commit
 - **Search across checkpoints** — find the checkpoint where you fixed the auth bug, by keyword, branch, file, or just asking in natural language
+- **Remote checkpoint support** — fetch checkpoints from remote with `--fetch`, search and browse across machines
 - **Cross-machine resume** — push checkpoints to remote, pull them on another machine, continue exactly where you left off
 
 ## How it works
@@ -25,6 +26,7 @@ Once installed, everything is automatic:
 2. **On every commit**, a hook captures the session transcript and metadata as a checkpoint on the `neander/checkpoints/v1` orphan branch
 3. **On session end**, a final checkpoint captures everything even if no commits were made
 4. **Commits get linked** — a `Claude-Session` trailer is added so you can trace any commit back to the conversation that produced it
+5. **All reads go through the checkpoint branch** — commands read directly from git, not local files. Use `--fetch` to pull remote checkpoint data first
 
 When you need context, just ask naturally:
 
@@ -212,7 +214,7 @@ That's it. The installer copies scripts, skills, hooks, and permissions into the
 
 ```
 scripts/
-  parse_jsonl.py         JSONL parser (list, search, status, stats, transcript, files, snapshots)
+  parse_jsonl.py         JSONL parser (checkpoint-centric: list, search, status, stats, transcript — reads from git branch, --fetch for remote)
   checkpoint.sh          Save session to orphan branch (multi-session, auto-push)
   save_summary.sh        Persist AI summary into checkpoint metadata
   restore.sh             Fetch transcript from remote for cross-machine resume

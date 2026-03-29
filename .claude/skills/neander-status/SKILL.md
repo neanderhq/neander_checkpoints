@@ -9,6 +9,8 @@ description: Show active and recent Claude Code sessions for this project. Use w
 python3 __SCRIPTS_DIR__/parse_jsonl.py status --project <current working directory>
 ```
 
+Use `--fetch` to fetch the latest checkpoint data from the remote before showing status.
+
 ## Step 2: Output verbatim
 
 Copy the ENTIRE output from step 1 and output it as a markdown code block.

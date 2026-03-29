@@ -23,6 +23,8 @@ python3 __SCRIPTS_DIR__/parse_jsonl.py search --project <current working directo
 
 Available flags: `--keyword`, `--branch`, `--file`, `--date-from`, `--date-to`, `--commit`
 
+Use `--fetch` to fetch the latest checkpoint data from the remote before searching.
+
 ## Step 2: Output verbatim
 
 Copy the ENTIRE output from step 1 and output it as a markdown code block.

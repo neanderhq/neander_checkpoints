@@ -28,10 +28,12 @@ You don't need to wait for the user to run a slash command. Use the skills natur
 
 ### Available scripts (for direct use only when skills don't cover the case)
 
+All commands read from the git checkpoint branch. Use `--fetch` to pull remote data first. The primary flag is `--checkpoint`/`-c` (`--session`/`-s` still works as alias).
+
 ```bash
 python3 __SCRIPTS_DIR__/parse_jsonl.py list --project <cwd>
-python3 __SCRIPTS_DIR__/parse_jsonl.py search --project <cwd> --keyword "text" --branch "name"
-python3 __SCRIPTS_DIR__/parse_jsonl.py stats --session <checkpoint-id>
-python3 __SCRIPTS_DIR__/parse_jsonl.py transcript --session <checkpoint-id>
+python3 __SCRIPTS_DIR__/parse_jsonl.py search --project <cwd> --keyword "text" --branch "name" --fetch
+python3 __SCRIPTS_DIR__/parse_jsonl.py stats --checkpoint <checkpoint-id>
+python3 __SCRIPTS_DIR__/parse_jsonl.py transcript --checkpoint <checkpoint-id>
 bash __SCRIPTS_DIR__/restore.sh <session-id> <cwd>
 ```
