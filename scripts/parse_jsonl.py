@@ -510,6 +510,42 @@ def search_sessions(project_path: str = None, keyword: str = None,
     return results
 
 
+def get_cached_intent(session_id: str) -> str:
+    """Look up cached summary intent from the checkpoint branch. Returns empty string if not found."""
+    import subprocess
+    try:
+        # Find checkpoint ID from index
+        result = subprocess.run(
+            ["git", "show", "neander/checkpoints/v1:index.log"],
+            capture_output=True, text=True, timeout=5,
+        )
+        if result.returncode != 0:
+            return ""
+        # Find latest checkpoint for this session
+        match = ""
+        for line in result.stdout.strip().split("\n"):
+            if session_id in line:
+                match = line
+        if not match:
+            return ""
+        checkpoint_id = match.split("|")[0]
+        shard_dir = f"{checkpoint_id[:2]}/{checkpoint_id[2:]}"
+        # Read metadata
+        result = subprocess.run(
+            ["git", "show", f"neander/checkpoints/v1:{shard_dir}/metadata.json"],
+            capture_output=True, text=True, timeout=5,
+        )
+        if result.returncode != 0:
+            return ""
+        metadata = json.loads(result.stdout)
+        summary = metadata.get("summary")
+        if summary and isinstance(summary, dict):
+            return summary.get("intent", "")
+    except Exception:
+        pass
+    return ""
+
+
 if __name__ == "__main__":
     import argparse
     import glob as glob_module
@@ -580,6 +616,11 @@ if __name__ == "__main__":
                         break
                 if not first_prompt and user_msgs:
                     first_prompt = _strip_injected_tags(user_msgs[0].text)[:80].replace("\n", " ")
+                # Try cached summary intent, fall back to first prompt
+                topic = get_cached_intent(s.session_id)
+                if not topic:
+                    topic = first_prompt
+
                 entries_list.append(StatusEntry(
                     session_id=s.session_id,
                     slug=data.metadata.slug,
@@ -588,7 +629,7 @@ if __name__ == "__main__":
                     first_timestamp=data.metadata.first_timestamp,
                     last_timestamp=data.metadata.last_timestamp,
                     total_tokens=data.token_usage.total_tokens,
-                    first_prompt=first_prompt,
+                    first_prompt=topic,
                     files_modified=len(data.modified_files),
                 ))
             except Exception:
