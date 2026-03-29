@@ -172,10 +172,8 @@ def run_resume(identifier: str | None = None) -> int:
     local_path = Path.home() / ".claude" / "projects" / encoded_dir / f"{session_id}.jsonl"
 
     if local_path.exists():
-        print(f"Session already exists locally: {local_path}")
-        print()
-        print(f"To resume: claude --resume {session_id}")
-        return 0
+        print(f"Resuming session {session_id}...")
+        os.execvp("claude", ["claude", "--resume", session_id])
 
     # Find restore.sh
     restore_sh = _find_installed_restore_sh() or _find_bundled_restore_sh()
@@ -193,6 +191,5 @@ def run_resume(identifier: str | None = None) -> int:
         print(f"Error: failed to restore session {session_id}", file=sys.stderr)
         return 1
 
-    print()
-    print(f"To resume: claude --resume {session_id}")
-    return 0
+    print(f"Resuming session {session_id}...")
+    os.execvp("claude", ["claude", "--resume", session_id])
