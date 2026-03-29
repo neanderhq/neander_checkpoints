@@ -739,7 +739,7 @@ if __name__ == "__main__":
             for cp in checkpoints[:args.limit]:
                 date_str = cp.timestamp.split("T")[0] if "T" in cp.timestamp else "?"
                 time_str = cp.timestamp.split("T")[1][:5] if "T" in cp.timestamp else ""
-                topic = cp.intent[:45] if cp.intent else ""
+                topic = cp.intent[:45] if cp.intent else "(no summary)"
                 files = str(len(cp.merged_files)) if cp.merged_files else "-"
                 cp_rows.append((
                     cp.checkpoint_id[:12],
