@@ -169,7 +169,6 @@ neander/checkpoints/v1/
 - **Multi-session** — concurrent sessions on the same commit don't collide
 - **Persisted summaries** — AI summaries cached in metadata.json
 - **Auto-push** — checkpoints pushed to remote after creation
-- **Versioned schema** — `/v1` allows future format changes without breaking existing data
 
 ## Install
 
