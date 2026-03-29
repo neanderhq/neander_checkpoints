@@ -510,6 +510,66 @@ def search_sessions(project_path: str = None, keyword: str = None,
     return results
 
 
+def get_checkpoint_info() -> dict:
+    """Read checkpoint index and metadata. Returns {session_id: {"count": N, "intent": str, ...}}.
+
+    Makes exactly 2 git calls: one for index.log, one ls-tree to find all metadata files,
+    then reads each metadata file from the tree (cached in git, fast).
+    """
+    import subprocess
+    info = {}
+    try:
+        # 1. Read index
+        result = subprocess.run(
+            ["git", "show", "neander/checkpoints/v1:index.log"],
+            capture_output=True, text=True, timeout=5,
+        )
+        if result.returncode != 0:
+            return {}
+        for line in result.stdout.strip().split("\n"):
+            if not line:
+                continue
+            parts = line.split("|")
+            if len(parts) < 4:
+                continue
+            checkpoint_id, session_id, commit_sha, timestamp = parts[:4]
+            if session_id not in info:
+                info[session_id] = {
+                    "count": 0, "latest_checkpoint": checkpoint_id,
+                    "latest_timestamp": timestamp, "has_summary": False, "intent": "",
+                }
+            info[session_id]["count"] += 1
+            info[session_id]["latest_checkpoint"] = checkpoint_id
+            info[session_id]["latest_timestamp"] = timestamp
+
+        # 2. Batch-read metadata for all latest checkpoints in one pass
+        # Collect unique checkpoint IDs to check
+        checkpoints_to_read = {}
+        for session_id, data in info.items():
+            cp_id = data["latest_checkpoint"]
+            checkpoints_to_read[cp_id] = session_id
+
+        # Read all metadata files via a single git command
+        for cp_id, session_id in checkpoints_to_read.items():
+            shard = f"{cp_id[:2]}/{cp_id[2:]}"
+            try:
+                result = subprocess.run(
+                    ["git", "show", f"neander/checkpoints/v1:{shard}/metadata.json"],
+                    capture_output=True, text=True, timeout=5,
+                )
+                if result.returncode == 0:
+                    metadata = json.loads(result.stdout)
+                    summary = metadata.get("summary")
+                    if summary and isinstance(summary, dict):
+                        info[session_id]["has_summary"] = True
+                        info[session_id]["intent"] = summary.get("intent", "")
+            except Exception:
+                pass
+    except Exception:
+        pass
+    return info
+
+
 def get_cached_intent(session_id: str) -> str:
     """Look up cached summary intent from the checkpoint branch. Returns empty string if not found."""
     import subprocess
@@ -604,7 +664,11 @@ if __name__ == "__main__":
             print("No sessions found.")
             sys.exit(0)
 
+        # Load checkpoint info once
+        cp_info = get_checkpoint_info()
+
         entries_list = []
+        cp_counts = []
         for s in sessions[:args.limit]:
             try:
                 data = session_summary_data(s.path)
@@ -617,10 +681,10 @@ if __name__ == "__main__":
                         break
                 if not first_prompt and user_msgs:
                     first_prompt = _strip_injected_tags(user_msgs[0].text)[:80].replace("\n", " ")
-                # Try cached summary intent, fall back to first prompt
-                topic = get_cached_intent(s.session_id)
-                if not topic:
-                    topic = first_prompt
+
+                # Topic: cached intent > first prompt
+                si = cp_info.get(s.session_id, {})
+                topic = si.get("intent", "") or first_prompt
 
                 entries_list.append(StatusEntry(
                     session_id=s.session_id,
@@ -633,6 +697,13 @@ if __name__ == "__main__":
                     first_prompt=topic,
                     files_modified=len(data.modified_files),
                 ))
+
+                # Checkpoint info for this session
+                count = si.get("count", 0)
+                has_summary = "+" if si.get("has_summary") else ""
+                cp_counts.append(f"{count}{has_summary}" if count else "-")
+            except Exception:
+                continue
             except Exception:
                 continue
 
@@ -641,15 +712,17 @@ if __name__ == "__main__":
         else:
             # Build formatted table
             rows = []
-            for e in entries_list:
+            for i, e in enumerate(entries_list):
                 ts = e.first_timestamp
                 date_str = ts.split("T")[0] if ts and "T" in ts else "?"
                 tokens_k = f"{e.total_tokens / 1000:.1f}k"
                 model_short = e.model.replace("claude-", "").replace("-4-6", "") if e.model else ""
-                prompt = e.first_prompt[:40] or "(empty)"
+                topic = e.first_prompt[:40] or "(empty)"
+                cp = cp_counts[i] if i < len(cp_counts) else "-"
                 rows.append((
                     f"{e.session_id[:8]} ({model_short})",
-                    prompt,
+                    cp,
+                    topic,
                     e.branch,
                     date_str,
                     tokens_k,
@@ -657,7 +730,7 @@ if __name__ == "__main__":
                 ))
 
             if rows:
-                headers = ("Session", "Topic", "Branch", "Date", "Tokens", "Files")
+                headers = ("Session", "Checkpoints", "Topic", "Branch", "Date", "Tokens", "Files")
                 # Calculate column widths
                 widths = [len(h) for h in headers]
                 for row in rows:
