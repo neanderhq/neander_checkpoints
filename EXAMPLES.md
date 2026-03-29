@@ -193,38 +193,6 @@ To resume:
 
 ---
 
-## /neander-rewind
-
-```
-> /neander-rewind
-
-Available checkpoints:
-
-  1. [git commit]  835718b  2h ago   "feat: consolidate WebSocket hooks"
-  2. [git commit]  73fe767  4h ago   "feat: add mermaid diagram support"
-  3. [snapshot]    snap-3   6h ago   3 files backed up
-  4. [git commit]  a1b2c3d  1d ago   "fix: cross-conversation message leak"
-
-Select checkpoint (1-4) or cancel: > 2
-
-Checkpoint 73fe767 — "feat: add mermaid diagram support"
-Files in this checkpoint:
-  - src/components/DocumentPanel.tsx
-  - package.json
-
-Options:
-  1. Restore files (overwrites current versions)
-  2. View only (show file contents)
-  3. Cancel
-
-> 1
-
-Restored 2 files from checkpoint 73fe767.
-To resume the session: claude --resume abc123-session-id
-```
-
----
-
 ## /neander-search
 
 ### By keyword

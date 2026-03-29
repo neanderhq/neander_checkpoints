@@ -14,7 +14,6 @@ When the user asks about checkpoints, sessions, summaries, transcripts, or histo
 | "what did I do yesterday/last week" | `/neander-search` |
 | "checkpoint stats", "how much did it cost" | `/neander-session-stats` |
 | "resume ...", "continue where I left off" | `/neander-resume` |
-| "go back", "rewind", "restore checkpoint" | `/neander-rewind` |
 | "recent checkpoints", "what's been going on" | `/neander-status` |
 
 ### When to use these tools proactively
@@ -22,7 +21,6 @@ When the user asks about checkpoints, sessions, summaries, transcripts, or histo
 You don't need to wait for the user to run a slash command. Use the skills naturally when the context calls for it:
 
 - **User asks about previous work** → invoke `/neander-search`
-- **User references a past checkpoint or session** → invoke `/neander-resume` or `/neander-rewind`
 - **User asks about code history beyond git** → invoke `/neander-search`, then `/neander-transcript`
 - **User seems lost or is re-doing work** → invoke `/neander-search` to check if a previous checkpoint solved this
 

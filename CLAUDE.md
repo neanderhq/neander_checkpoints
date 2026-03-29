@@ -1,6 +1,5 @@
 # neander_code_sessions
 
-Claude Code checkpoint management toolkit — checkpoints, summaries, redaction, and rewind built entirely with Claude Code hooks, skills, and scripts.
 
 ## Project structure
 
@@ -21,7 +20,6 @@ scripts/                — Core logic (Python + Bash)
   neander-summarize/       — /neander-summarize: AI summary with caching
   neander-session-stats/   — /neander-session-stats: tokens, costs, duration
   neander-resume/          — /neander-resume: resume from checkpoint (cross-machine)
-  neander-rewind/          — /neander-rewind: list and restore checkpoints
   neander-redact/          — /neander-redact: scan and redact secrets (user-invoked only)
 
 hooks/                  — Installation and config

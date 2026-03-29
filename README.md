@@ -1,6 +1,6 @@
 # neander_checkpoints
 
-Capture Claude Code sessions alongside your Git history. Understand *why* code changed, not just *what*. Rewind when things go wrong. Resume where you left off — even on a different machine.
+Capture Claude Code sessions alongside your Git history. Understand *why* code changed, not just *what*. Resume where you left off — even on a different machine.
 
 Built natively for Claude Code using hooks, skills, and scripts. No external binaries. Install once, works automatically.
 
@@ -11,7 +11,6 @@ Your git log shows what code changed. But when AI writes your code, the *how* an
 neander_checkpoints solves this:
 
 - **Understand why code changed** — see the full prompt/response transcript and files touched for any checkpoint
-- **Recover instantly** — rewind to a known-good checkpoint when an agent goes sideways, resume seamlessly
 - **Keep git history clean** — checkpoint data lives on a separate orphan branch, never pollutes your working tree
 - **Onboard faster** — show teammates the path from prompt to change to commit
 - **Search across checkpoints** — find the checkpoint where you fixed the auth bug, by keyword, branch, file, or just asking in natural language
@@ -52,7 +51,6 @@ All commands accept checkpoint IDs (16-char hex like `a3f8b9c1d2e4`), session ID
 | `/neander-summarize` | Generate an AI summary (intent, outcome, learnings, friction, open items) and persist it |
 | `/neander-session-stats` | Token usage, cost estimate, duration, files modified for a checkpoint |
 | `/neander-resume` | Find a checkpoint and get the `claude --resume` command (cross-machine support) |
-| `/neander-rewind` | List checkpoints and restore files to a previous state |
 | `/neander-redact` | Scan a transcript for secrets and PII before sharing |
 
 ## Features
@@ -230,7 +228,6 @@ scripts/
   neander-summarize/     AI summary with caching
   neander-session-stats/ Token usage, costs, duration
   neander-resume/        Resume from checkpoint (cross-machine)
-  neander-rewind/        Restore checkpoints
   neander-redact/        Redact secrets (user-invoked only)
 
 hooks/
