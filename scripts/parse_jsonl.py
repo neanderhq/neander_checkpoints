@@ -666,22 +666,83 @@ if __name__ == "__main__":
 
     if args.command == "status":
         checkpoints = get_all_checkpoints()
-        if not checkpoints:
-            print("No checkpoints found.")
-            print("Checkpoints are created automatically on git commits and session stops.")
+        sessions = find_session_files(args.project)
+
+        # Find sessions without checkpoints (live/in-progress)
+        checkpointed_sessions = {cp.session_id for cp in checkpoints}
+        live_sessions = [s for s in sessions if s.session_id not in checkpointed_sessions]
+
+        if not checkpoints and not live_sessions:
+            print("No checkpoints or sessions found.")
             sys.exit(0)
 
         if args.json:
-            print(json.dumps([asdict(cp) for cp in checkpoints[:args.limit]], default=str, indent=2))
-        else:
-            rows = []
+            print(json.dumps({
+                "live_sessions": [asdict(s) for s in live_sessions[:5]],
+                "checkpoints": [asdict(cp) for cp in checkpoints[:args.limit]],
+            }, default=str, indent=2))
+            sys.exit(0)
+
+        # --- Helper for table formatting ---
+        def print_table(headers, rows):
+            if not rows:
+                return
+            widths = [len(h) for h in headers]
+            for row in rows:
+                for i, cell in enumerate(row):
+                    widths[i] = max(widths[i], len(cell))
+            def fmt(cells):
+                return "  ".join(cell.ljust(widths[i]) for i, cell in enumerate(cells))
+            print(fmt(headers))
+            print("  ".join("-" * w for w in widths))
+            for row in rows:
+                print(fmt(row))
+
+        # --- Live Sessions ---
+        if live_sessions:
+            print("== Active Sessions (not yet checkpointed) ==\n")
+            live_rows = []
+            for s in live_sessions[:5]:
+                try:
+                    data = session_summary_data(s.path)
+                    user_msgs = [m for m in data.messages if m.role == "user"]
+                    topic = ""
+                    for um in user_msgs:
+                        text = um.text.strip()
+                        if text and not text.startswith("<"):
+                            topic = text[:45].replace("\n", " ")
+                            break
+                    if not topic and user_msgs:
+                        topic = _strip_injected_tags(user_msgs[0].text)[:45].replace("\n", " ")
+                    model_short = ", ".join(data.metadata.models).replace("claude-", "").replace("-4-6", "")
+                    tokens_k = f"{data.token_usage.total_tokens / 1000:.1f}k"
+                    live_rows.append((
+                        s.session_id[:8],
+                        model_short,
+                        data.metadata.git_branch or "",
+                        tokens_k,
+                        topic or "(empty)",
+                    ))
+                except Exception:
+                    continue
+
+            print_table(
+                ("Session", "Model", "Branch", "Tokens", "Topic"),
+                live_rows,
+            )
+            print()
+
+        # --- Checkpoints ---
+        if checkpoints:
+            print(f"== Checkpoints ({len(checkpoints)} total) ==\n")
+            cp_rows = []
             for cp in checkpoints[:args.limit]:
                 date_str = cp.timestamp.split("T")[0] if "T" in cp.timestamp else "?"
                 time_str = cp.timestamp.split("T")[1][:5] if "T" in cp.timestamp else ""
                 topic = cp.intent[:45] if cp.intent else ""
                 summary = "yes" if cp.has_summary else "-"
                 files = str(len(cp.merged_files)) if cp.merged_files else "-"
-                rows.append((
+                cp_rows.append((
                     cp.checkpoint_id[:12],
                     cp.commit_sha[:8],
                     cp.session_id[:8],
@@ -691,25 +752,20 @@ if __name__ == "__main__":
                     topic,
                 ))
 
-            headers = ("Checkpoint", "Commit", "Session", "Date", "Files", "Summary", "Topic")
-            widths = [len(h) for h in headers]
-            for row in rows:
-                for i, cell in enumerate(row):
-                    widths[i] = max(widths[i], len(cell))
+            print_table(
+                ("Checkpoint", "Commit", "Session", "Date", "Files", "Summary", "Topic"),
+                cp_rows,
+            )
 
-            def fmt_row(cells):
-                return "  ".join(cell.ljust(widths[i]) for i, cell in enumerate(cells))
+        # --- Footer ---
+        print()
+        if live_sessions:
+            print(f"Resume latest: claude --resume {live_sessions[0].session_id}")
+        elif checkpoints:
+            print(f"Resume latest: claude --resume {checkpoints[0].session_id}")
+        print("Summarize:     /neander-summarize <checkpoint_id>")
+        print("Transcript:    /neander-transcript <checkpoint_id>")
 
-            print(fmt_row(headers))
-            print("  ".join("-" * w for w in widths))
-            for row in rows:
-                print(fmt_row(row))
-
-            if checkpoints:
-                print()
-                print(f"To resume latest session: claude --resume {checkpoints[0].session_id}")
-                print(f"To summarize: /neander-summarize <checkpoint_id>")
-                print(f"To view transcript: /neander-transcript <checkpoint_id>")
         sys.exit(0)
 
     if args.command == "list":
