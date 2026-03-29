@@ -562,6 +562,7 @@ if __name__ == "__main__":
     parser.add_argument("--date-from", help="Filter sessions from date (YYYY-MM-DD)")
     parser.add_argument("--date-to", help="Filter sessions to date (YYYY-MM-DD)")
     parser.add_argument("--commit", help="Filter by commit SHA")
+    parser.add_argument("--limit", "-l", type=int, default=10, help="Max sessions to show (default 10)")
     args = parser.parse_args()
 
     if args.command == "search":
@@ -604,7 +605,7 @@ if __name__ == "__main__":
             sys.exit(0)
 
         entries_list = []
-        for s in sessions[:5]:
+        for s in sessions[:args.limit]:
             try:
                 data = session_summary_data(s.path)
                 user_msgs = [m for m in data.messages if m.role == "user"]
@@ -679,7 +680,7 @@ if __name__ == "__main__":
         if args.json:
             print(json.dumps([asdict(s) for s in sessions], default=str, indent=2))
         else:
-            for s in sessions[:20]:
+            for s in sessions[:args.limit]:
                 size_kb = s.size_bytes / 1024
                 print(f"  {s.session_id[:12]}...  {s.modified:%Y-%m-%d %H:%M}  {size_kb:>8.1f}KB  {s.project_dir}")
         sys.exit(0)
