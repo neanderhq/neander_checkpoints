@@ -1,6 +1,6 @@
 # neander_checkpoints
 
-Capture Claude Code checkpoints alongside your Git history. Understand *why* code changed, not just *what*. Rewind when things go wrong. Resume where you left off — even on a different machine.
+Capture Claude Code sessions alongside your Git history. Understand *why* code changed, not just *what*. Rewind when things go wrong. Resume where you left off — even on a different machine.
 
 Built natively for Claude Code using hooks, skills, and scripts. No external binaries. Install once, works automatically.
 
@@ -36,7 +36,11 @@ When you need context, just ask naturally:
 | "Go back to before that change" | Claude lists checkpoints and offers to restore |
 | "How much did that checkpoint cost?" | Claude shows token usage and cost estimate |
 
-Or use slash commands explicitly:
+## Commands
+
+All commands work as Claude Code skills — Claude auto-invokes them based on conversation context. You can also use them explicitly as slash commands.
+
+All commands accept checkpoint IDs (16-char hex like `a3f8b9c1d2e4`), session IDs (UUIDs), or partial IDs.
 
 | Command | Description |
 |---|---|
@@ -49,66 +53,43 @@ Or use slash commands explicitly:
 | `/neander-rewind` | List checkpoints and restore files to a previous state |
 | `/neander-redact` | Scan a transcript for secrets and PII before sharing |
 
-All commands accept checkpoint IDs (16-char hex like `a3f8b9c1d2e4`), session IDs (UUIDs), or partial IDs.
-
-## Install
-
-```bash
-git clone git@github.com:neanderhq/neander_checkpoints.git ~/checkouts/neander_checkpoints
-cd ~/checkouts/neander_checkpoints
-```
-
-Install into any project:
-
-```bash
-./hooks/install.sh /path/to/project
-```
-
-That's it. The installer copies scripts, skills, hooks, and permissions into the project's `.claude/` directory. Everything is self-contained — anyone who clones the repo gets it working out of the box.
-
-```bash
-# Or install globally (hooks fire in all sessions)
-./hooks/install.sh --global
-```
-
-| | Scripts | Skills | Hooks + Permissions | Pre-push | CLAUDE.md |
-|---|---|---|---|---|---|
-| Project | `<path>/.claude/scripts/` | `<path>/.claude/skills/` | `<path>/.claude/settings.json` | `<path>/.git/hooks/` | appended |
-| Global | `~/.claude/scripts/` | `~/.claude/skills/` | `~/.claude/settings.json` | skipped | appended |
-
-### What gets installed
-
-- **Scripts** — JSONL parser, checkpoint creator, secret redaction, session restore
-- **Skills** — 8 auto-invoked skills that Claude triggers based on conversation context (no slash commands needed)
-- **Hooks** — `Stop` and `PostToolUse:Bash` hooks for automatic checkpointing and commit linking
-- **Permissions** — auto-allow rules so scripts run without approval prompts
-- **CLAUDE.md** — instructions telling Claude when to proactively use checkpoint tools
-- **Pre-push hook** — redacts secrets from transcripts before they leave your machine
-
-### Uninstall
-
-```bash
-./hooks/uninstall.sh /path/to/project
-./hooks/uninstall.sh --global
-```
-
 ## Features
 
-### Checkpoint search
+### Status
 
-Find any past checkpoint by keyword, branch, file, date, or commit — or just describe what you're looking for in natural language.
+Shows active sessions (not yet checkpointed) and recent checkpoints at a glance.
+
+```
+== Active Sessions (not yet checkpointed) ==
+
+Session   Model  Branch                   Tokens  Topic
+--------  -----  -----------------------  ------  -----
+f6d4f073  opus   feat/impl-tasks-from-td  0.1k    (empty)
+
+== Checkpoints (18 total) ==
+
+Checkpoint    Commit    Session   Date              Files  Summary  Topic
+------------  --------  --------  ----------------  -----  -------  -----
+dfe7c7132205  70e684cf  37252de3  2026-03-28 13:20  9      yes      Simplify the generate_tasks flow...
+b4d88d5d4fe9  70e684cf  37252de3  2026-03-28 13:20  9      -
+7b02e43d74db  67ff5c5c  37252de3  2026-03-28 13:18  9      -
+```
+
+### Search
+
+Find any checkpoint by keyword, branch, file, date, or commit — or just describe what you're looking for.
 
 ```bash
 # Structured
-python3 scripts/parse_jsonl.py search --project . --keyword "OAuth" --branch "feat/auth"
+python3 .claude/scripts/parse_jsonl.py search --project . --keyword "OAuth" --branch "feat/auth"
 
-# Or just ask Claude
+# Natural language (via Claude)
 > "find the checkpoint where I fixed the WebSocket reconnection bugs"
 ```
 
-### Condensed transcripts
+### Transcripts
 
-Clean, readable view of any checkpoint — strips IDE noise, tool results, and thinking blocks. Shows just the conversation flow.
+Clean, readable conversation flow — strips IDE noise, tool results, and thinking blocks.
 
 ```
 --- 2026-03-22 ---
@@ -132,9 +113,9 @@ Clean, readable view of any checkpoint — strips IDE noise, tool results, and t
 [Tool] Edit: modules/chat/chat_websocket_handler.py
 ```
 
-### AI summaries with caching
+### AI summaries
 
-Structured summaries capturing intent, outcome, learnings, friction, and open items. Generated once, persisted to the checkpoint branch, cached across sessions and machines.
+Structured summaries generated once, persisted to the checkpoint branch, cached across sessions and machines.
 
 ```
 ### Intent
@@ -156,9 +137,9 @@ Both fixes implemented and tested.
 
 ### Cross-machine resume
 
-Checkpoints are pushed to the remote checkpoint branch automatically. On another machine:
+Checkpoints are pushed to the remote automatically. On another machine:
 
-```bash
+```
 > /neander-resume <checkpoint-id>
 # or just: "continue what I was doing on feat/attachments"
 ```
@@ -172,7 +153,9 @@ Three-layer detection before transcripts leave your machine:
 2. **Pattern matching** — 15+ known formats (AWS keys, GitHub PATs, JWTs, connection strings)
 3. **PII detection** — emails, phone numbers, SSNs
 
-### Checkpoint format
+See [EXAMPLES.md](EXAMPLES.md) for full output examples of every command.
+
+## Checkpoint format
 
 Stored on `neander/checkpoints/v1` — a versioned orphan branch that never touches your code history.
 
@@ -191,19 +174,59 @@ neander/checkpoints/v1/
 - **Auto-push** — checkpoints pushed to remote after creation
 - **Versioned schema** — `/v1` allows future format changes without breaking existing data
 
-See [EXAMPLES.md](EXAMPLES.md) for full output examples of every command.
+## Install
+
+```bash
+git clone git@github.com:neanderhq/neander_checkpoints.git ~/checkouts/neander_checkpoints
+cd ~/checkouts/neander_checkpoints
+```
+
+Install into any project:
+
+```bash
+./hooks/install.sh /path/to/project
+```
+
+That's it. The installer copies scripts, skills, hooks, and permissions into the project's `.claude/` directory. Everything is self-contained — anyone who clones the repo gets it working out of the box.
+
+```bash
+# Or install globally (hooks fire in all sessions)
+./hooks/install.sh --global
+```
+
+### What gets installed
+
+| | Scripts | Skills | Hooks + Permissions | Pre-push | CLAUDE.md |
+|---|---|---|---|---|---|
+| Project | `<path>/.claude/scripts/` | `<path>/.claude/skills/` | `<path>/.claude/settings.json` | `<path>/.git/hooks/` | appended |
+| Global | `~/.claude/scripts/` | `~/.claude/skills/` | `~/.claude/settings.json` | skipped | appended |
+
+- **Scripts** — JSONL parser, checkpoint creator, secret redaction, session restore
+- **Skills** — 8 auto-invoked skills that Claude triggers based on conversation context
+- **Hooks** — `Stop` and `PostToolUse:Bash` hooks for automatic checkpointing and commit linking
+- **Permissions** — auto-allow rules so scripts run without approval prompts
+- **CLAUDE.md** — instructions telling Claude when to proactively use checkpoint tools
+- **Pre-push hook** — redacts secrets from transcripts before they leave your machine
+
+### Uninstall
+
+```bash
+./hooks/uninstall.sh /path/to/project
+./hooks/uninstall.sh --global
+```
 
 ## Standalone CLI
 
 The parser works without installation:
 
 ```bash
-python3 scripts/parse_jsonl.py list                                    # all checkpoints
-python3 scripts/parse_jsonl.py list --project /path/to/project         # project checkpoints
+python3 scripts/parse_jsonl.py list                                    # all sessions
+python3 scripts/parse_jsonl.py list --project /path/to/project         # project sessions
+python3 scripts/parse_jsonl.py status --project /path/to/project       # checkpoints overview
 python3 scripts/parse_jsonl.py search --project . --keyword "text"     # search
-python3 scripts/parse_jsonl.py stats --session <checkpoint-id>         # token usage
-python3 scripts/parse_jsonl.py transcript --session <checkpoint-id>    # transcript
-python3 scripts/parse_jsonl.py files --session <checkpoint-id>         # modified files
+python3 scripts/parse_jsonl.py stats --session <id>                    # token usage
+python3 scripts/parse_jsonl.py transcript --session <id>               # transcript
+python3 scripts/parse_jsonl.py files --session <id>                    # modified files
 python3 scripts/redact.py --check <path>                               # scan for secrets
 ```
 
@@ -211,16 +234,17 @@ python3 scripts/redact.py --check <path>                               # scan fo
 
 ```
 scripts/
-  parse_jsonl.py         JSONL parser (list, search, stats, transcript, files, snapshots)
+  parse_jsonl.py         JSONL parser (list, search, status, stats, transcript, files, snapshots)
   checkpoint.sh          Save session to orphan branch (multi-session, auto-push)
   save_summary.sh        Persist AI summary into checkpoint metadata
   restore.sh             Fetch transcript from remote for cross-machine resume
   redact.py              3-layer secret redaction
   link_commit.sh         Add Claude-Session trailer to commits
   detect_commit.sh       Hook: detect git commit → link + checkpoint
+  on_stop.sh             Hook: checkpoint on session stop
 
 .claude/skills/          Auto-invoked by Claude based on conversation context
-  neander-status/        Recent checkpoints overview
+  neander-status/        Active sessions + recent checkpoints
   neander-search/        Search by keyword, branch, file, date, commit
   neander-transcript/    Condensed transcript view
   neander-summarize/     AI summary with caching
