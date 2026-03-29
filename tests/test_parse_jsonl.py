@@ -14,11 +14,12 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 from parse_jsonl import (
     Message, SessionFile, SessionMetadata, TokenUsage, FileSnapshot,
     SessionData, MessageCounts, ToolCall, SearchResult, KeywordMatch,
-    StatusEntry,
+    StatusEntry, CheckpointInfo,
     _encode_project_path, _strip_injected_tags, _tool_detail,
     parse_jsonl, extract_messages, extract_tool_calls,
     extract_modified_files, calculate_token_usage, get_session_metadata,
     get_file_snapshots, format_condensed_transcript, session_summary_data,
+    search_sessions,
 )
 
 
@@ -521,8 +522,155 @@ class TestSerialization:
         assert r.branch == "main"
         assert r.keyword_matches == []
 
+    def test_checkpoint_info(self):
+        cp = CheckpointInfo(
+            checkpoint_id="a3f8b9c1d2e45678",
+            session_id="abc-123",
+            commit_sha="deadbeef",
+            timestamp="2026-03-22T12:00:00Z",
+        )
+        assert cp.checkpoint_id == "a3f8b9c1d2e45678"
+        assert cp.has_summary is False
+        assert cp.intent == ""
+        assert cp.merged_files == []
+
+    def test_checkpoint_info_with_summary(self):
+        cp = CheckpointInfo(
+            checkpoint_id="a3f8b9c1d2e45678",
+            session_id="abc-123",
+            commit_sha="deadbeef",
+            timestamp="2026-03-22T12:00:00Z",
+            has_summary=True,
+            intent="Fix the auth bug",
+            merged_files=["/a.py", "/b.py"],
+        )
+        assert cp.has_summary is True
+        assert cp.intent == "Fix the auth bug"
+        assert len(cp.merged_files) == 2
+
+    def test_status_entry(self):
+        e = StatusEntry(
+            session_id="abc", slug="s", branch="main", model="opus",
+            first_timestamp="t1", last_timestamp="t2", total_tokens=1000,
+            first_prompt="hello", files_modified=3,
+        )
+        assert e.total_tokens == 1000
+        assert e.files_modified == 3
+
     def test_asdict(self):
         from dataclasses import asdict
         m = Message(role="tool", text="Read: /foo.py", timestamp="t")
         d = asdict(m)
         assert d == {"role": "tool", "text": "Read: /foo.py", "timestamp": "t"}
+
+    def test_checkpoint_info_asdict(self):
+        from dataclasses import asdict
+        cp = CheckpointInfo(
+            checkpoint_id="abc123", session_id="s1",
+            commit_sha="dead", timestamp="t",
+            has_summary=True, intent="Fix bug",
+        )
+        d = asdict(cp)
+        assert d["intent"] == "Fix bug"
+        assert d["has_summary"] is True
+
+
+# --- Tests: Search ---
+
+class TestSearchSessions:
+    def _make_session_files(self, sessions):
+        """Create temp JSONL files and return paths."""
+        paths = []
+        for entries in sessions:
+            paths.append(write_jsonl(entries))
+        return paths
+
+    def test_keyword_search(self):
+        entries = [
+            make_user_entry("fix the OAuth callback bug"),
+            make_assistant_entry([make_text_block("I'll look at the OAuth handler")]),
+        ]
+        path = write_jsonl(entries)
+        try:
+            # search_sessions needs find_session_files which looks at ~/.claude/projects
+            # Test the matching logic directly instead
+            from parse_jsonl import parse_jsonl as pjl, extract_messages, get_session_metadata
+            parsed = pjl(path)
+            msgs = extract_messages(parsed)
+            assert any("OAuth" in m.text for m in msgs)
+        finally:
+            os.unlink(path)
+
+    def test_search_result_keyword_matches(self):
+        km = KeywordMatch(role="user", snippet="...fixed the OAuth bug...")
+        assert km.role == "user"
+        assert "OAuth" in km.snippet
+
+    def test_search_result_with_matches(self):
+        r = SearchResult(
+            session_id="abc", path="/a.jsonl", branch="feat/auth",
+            slug="s", first_timestamp="2026-03-22T12:00:00Z",
+            last_timestamp="2026-03-22T13:00:00Z",
+            first_prompt="fix OAuth", total_tokens=5000,
+            modified="2026-03-22", match_reasons=["keyword: 3 matches", "branch: feat/auth"],
+            keyword_matches=[
+                KeywordMatch(role="user", snippet="...OAuth callback..."),
+                KeywordMatch(role="assistant", snippet="...OAuth handler..."),
+            ],
+        )
+        assert len(r.match_reasons) == 2
+        assert len(r.keyword_matches) == 2
+        assert r.branch == "feat/auth"
+
+
+# --- Tests: CLI Output Formatting ---
+
+class TestCLIOutput:
+    def test_stats_output(self):
+        """Test that stats command produces output for a session."""
+        entries = [
+            make_user_entry("hello", timestamp="2026-03-22T10:00:00Z"),
+            make_assistant_entry(
+                [make_text_block("hi"), make_tool_use_block("Edit", {"file_path": "/foo.py"})],
+                timestamp="2026-03-22T10:05:00Z",
+            ),
+        ]
+        path = write_jsonl(entries)
+        try:
+            data = session_summary_data(path)
+            assert data.token_usage.total_tokens > 0
+            assert data.message_counts.user == 1
+            assert data.message_counts.assistant == 1
+            assert "/foo.py" in data.modified_files
+        finally:
+            os.unlink(path)
+
+    def test_transcript_output_format(self):
+        """Test transcript output has expected format markers."""
+        msgs = [
+            Message(role="user", text="hello world", timestamp="2026-03-22T10:00:00Z"),
+            Message(role="assistant", text="hi there", timestamp="2026-03-22T10:01:00Z"),
+            Message(role="tool", text="Read: /foo.py", timestamp="2026-03-22T10:01:00Z"),
+        ]
+        output = format_condensed_transcript(msgs)
+        assert "[User] hello world" in output
+        assert "[Assistant] hi there" in output
+        assert "[Tool] Read: /foo.py" in output
+        assert "--- 2026-03-22 ---" in output
+        assert "10:00" in output
+        assert "10:01" in output
+
+    def test_transcript_no_timestamp_on_tools(self):
+        """Tools should not have timestamps in output."""
+        msgs = [
+            Message(role="tool", text="Edit: /foo.py", timestamp="2026-03-22T10:00:00Z"),
+        ]
+        output = format_condensed_transcript(msgs)
+        assert "[Tool] Edit: /foo.py" in output
+        # Tool lines should NOT have a timestamp prefix
+        lines = [l for l in output.split("\n") if "[Tool]" in l]
+        assert lines[0].startswith("[Tool]")
+
+    def test_empty_messages_produce_empty_transcript(self):
+        output = format_condensed_transcript([])
+        assert output.strip() == ""
