@@ -68,23 +68,20 @@ f6d4f073  opus   feat/impl-tasks-from-td  0.1k    (empty)
 
 == Checkpoints (18 total) ==
 
-Checkpoint    Commit    Session   Date              Files  Summary  Topic
-------------  --------  --------  ----------------  -----  -------  -----
-dfe7c7132205  70e684cf  37252de3  2026-03-28 13:20  9      yes      Simplify the generate_tasks flow...
-b4d88d5d4fe9  70e684cf  37252de3  2026-03-28 13:20  9      -
-7b02e43d74db  67ff5c5c  37252de3  2026-03-28 13:18  9      -
+Checkpoint    Commit    Session   Date              Files  Topic
+------------  --------  --------  ----------------  -----  -----
+dfe7c7132205  70e684cf  37252de3  2026-03-28 13:20  9      Simplify the generate_tasks flow...
+b4d88d5d4fe9  70e684cf  37252de3  2026-03-28 13:20  9
+7b02e43d74db  67ff5c5c  37252de3  2026-03-28 13:18  9
 ```
 
 ### Search
 
 Find any checkpoint by keyword, branch, file, date, or commit — or just describe what you're looking for.
 
-```bash
-# Structured
-python3 .claude/scripts/parse_jsonl.py search --project . --keyword "OAuth" --branch "feat/auth"
-
-# Natural language (via Claude)
+```
 > "find the checkpoint where I fixed the WebSocket reconnection bugs"
+> /neander-search OAuth on feat/auth
 ```
 
 ### Transcripts
@@ -213,21 +210,6 @@ That's it. The installer copies scripts, skills, hooks, and permissions into the
 ```bash
 ./hooks/uninstall.sh /path/to/project
 ./hooks/uninstall.sh --global
-```
-
-## Standalone CLI
-
-The parser works without installation:
-
-```bash
-python3 scripts/parse_jsonl.py list                                    # all sessions
-python3 scripts/parse_jsonl.py list --project /path/to/project         # project sessions
-python3 scripts/parse_jsonl.py status --project /path/to/project       # checkpoints overview
-python3 scripts/parse_jsonl.py search --project . --keyword "text"     # search
-python3 scripts/parse_jsonl.py stats --session <id>                    # token usage
-python3 scripts/parse_jsonl.py transcript --session <id>               # transcript
-python3 scripts/parse_jsonl.py files --session <id>                    # modified files
-python3 scripts/redact.py --check <path>                               # scan for secrets
 ```
 
 ## Project structure

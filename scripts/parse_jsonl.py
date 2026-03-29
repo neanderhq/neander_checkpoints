@@ -740,7 +740,6 @@ if __name__ == "__main__":
                 date_str = cp.timestamp.split("T")[0] if "T" in cp.timestamp else "?"
                 time_str = cp.timestamp.split("T")[1][:5] if "T" in cp.timestamp else ""
                 topic = cp.intent[:45] if cp.intent else ""
-                summary = "yes" if cp.has_summary else "-"
                 files = str(len(cp.merged_files)) if cp.merged_files else "-"
                 cp_rows.append((
                     cp.checkpoint_id[:12],
@@ -748,12 +747,11 @@ if __name__ == "__main__":
                     cp.session_id[:8],
                     f"{date_str} {time_str}",
                     files,
-                    summary,
                     topic,
                 ))
 
             print_table(
-                ("Checkpoint", "Commit", "Session", "Date", "Files", "Summary", "Topic"),
+                ("Checkpoint", "Commit", "Session", "Date", "Files", "Topic"),
                 cp_rows,
             )
 
