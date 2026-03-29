@@ -3,59 +3,33 @@ description: Find a previous checkpoint and show the command to resume its sessi
 ---
 # Resume from a checkpoint
 
-Find a previous checkpoint and show the command to resume its session.
+## If a checkpoint ID or session ID was provided:
 
-## Arguments
-
-`$ARGUMENTS` can be one of:
-- **empty** — show the most recent checkpoint for this project with its resume command
-- **a checkpoint ID** (16-char hex) — look up the checkpoint, find its session ID, show resume command
-- **a session ID** (UUID) — resume that specific session directly
-- **a branch name** — find checkpoints associated with that branch
-- **"list"** — list all checkpoints and let the user pick
-
-## Finding the checkpoint
-
-- **Most recent**: `python3 __SCRIPTS_DIR__/parse_jsonl.py list --project <current working directory>`
-- **By checkpoint ID**: `python3 __SCRIPTS_DIR__/parse_jsonl.py stats --checkpoint <checkpoint_id>`
-- **By session ID**: `find __HOME__/.claude/projects -name "<session-id>.jsonl" -type f`
-- **By branch**: `python3 __SCRIPTS_DIR__/parse_jsonl.py list --project <current working directory>` then filter by branch from the stats
-
-## What to show
-
-For each candidate, get stats:
+**Step 1**: Get the session ID from the checkpoint:
 ```
-python3 __SCRIPTS_DIR__/parse_jsonl.py stats --checkpoint <checkpoint_id_or_path>
+python3 __SCRIPTS_DIR__/parse_jsonl.py stats --checkpoint <id> --json
 ```
+Extract `session_id` from the JSON output's `metadata` field.
 
-Display:
-- Checkpoint ID
-- Session ID
-- Branch it was on
-- Last prompt (first 100 chars of the last user message)
-- Duration and how long ago it ended (e.g., "45 min session, ended 3h ago")
-- Token usage
-- Files modified
-
-If multiple checkpoints match (e.g., same branch), show all and let the user pick.
-
-## Resume command
-
-Print the command to resume (using the session ID from the checkpoint):
+**Step 2**: Show the resume command:
 ```
 claude --resume <session_id>
 ```
 
-## Cross-machine resume
-
-If the session JSONL is NOT found locally (e.g., a teammate started it on another machine), use the restore script to fetch it from the checkpoint branch:
-
+**Step 3**: If the session file doesn't exist locally, restore it:
 ```
 bash __SCRIPTS_DIR__/restore.sh <session_id> <current working directory>
 ```
 
-If the restore script succeeds, the user can then run `claude --resume <session_id>`.
+## If no ID was provided (or "list"):
 
-If the checkpoint branch doesn't exist on the remote, tell the user the session transcript isn't available remotely.
+**Step 1**: Show status so the user can pick a checkpoint:
+```
+python3 __SCRIPTS_DIR__/parse_jsonl.py status --project <current working directory>
+```
+
+**Step 2**: Output the status verbatim as a code block, then ask the user which checkpoint to resume.
+
+**Step 3**: Once selected, get the session ID and show the resume command as above.
 
 $ARGUMENTS
