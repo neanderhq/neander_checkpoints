@@ -1,140 +1,73 @@
 # neander_checkpoints
 
-Capture Claude Code sessions alongside your Git history. Understand *why* code changed, not just *what*. Resume where you left off — even on a different machine.
+Every Claude Code session tells a story — the problem, the reasoning, the dead ends, the decisions. Your git log only captures the ending. neander_checkpoints captures the whole thing.
 
-Built natively for Claude Code using hooks, skills, agents, and scripts. No external binaries. Install once, works automatically.
+## The problem
 
-## Why
+You spend an hour with Claude refactoring the auth module. Three days later, you're back on the same branch and Claude has no idea what happened. You have to re-explain everything.
 
-Your git log shows what code changed. But when AI writes your code, the *how* and *why* live in the conversation — prompts, reasoning, tool calls, dead ends, decisions. Without capturing that, you lose context the moment a session ends.
+Your teammate used Claude to build the payment integration. The code works but you don't understand why they chose Stripe webhooks over polling. `git blame` tells you *who* and *when* — but not *why*.
 
-neander_checkpoints solves this:
+You ask Claude to refactor the database layer. Halfway through, you realize it's going in the wrong direction. You want to go back to 20 minutes ago, but `git stash` loses everything.
 
-- **Automatic context on session start** — Claude starts every session knowing what was done before on this branch, what's incomplete, and what the friction points were
-- **Code context agent** — when Claude reads unfamiliar code or is about to refactor, a subagent automatically looks up WHY it was written that way from past checkpoint transcripts
-- **Understand why code changed** — see the full prompt/response transcript and files touched for any checkpoint
-- **Search across checkpoints** — find the checkpoint where you fixed the auth bug, by keyword, branch, file, or just asking in natural language
-- **Cross-machine resume** — push checkpoints to remote, pull them on another machine, continue exactly where you left off
-- **Keep git history clean** — checkpoint data lives on a separate orphan branch, never pollutes your working tree
+## How neander_checkpoints helps
 
-## How it works
+### Claude remembers across sessions
 
-Once installed, everything is automatic:
+Start a new session on `feat/payments` and Claude already knows:
 
-1. **You code with Claude** — business as usual
-2. **On every commit**, a hook captures the session transcript and metadata as a checkpoint on the `neander/checkpoints/v1` orphan branch
-3. **On session end**, a final checkpoint captures everything even if no commits were made
-4. **On session start**, past checkpoint summaries for the current branch are injected into Claude's context
-5. **When reading code**, the code-context agent can look up why any piece of code was written
-6. **Commits get linked** — a `Claude-Session` trailer is added so you can trace any commit back to the conversation that produced it
+```
+[neander-checkpoints] Previous work on feat/payments:
 
-When you need context, just ask naturally:
+• Implement Stripe webhook handler for payment confirmations. (2026-03-28)
+  Open: Retry logic for failed webhooks not yet implemented.
 
-| You say | What happens |
-|---|---|
-| "What did I do yesterday?" | Claude searches checkpoints, shows relevant results |
-| "Why was this code written this way?" | Code-context agent searches transcripts for the reasoning |
-| "How much did that checkpoint cost?" | Claude shows token usage and cost estimate |
+• Add idempotency keys to prevent duplicate charges. (2026-03-29)
+  Open: Need to handle edge case where webhook arrives before redirect.
+```
 
-## CLI
+No re-explaining. Claude picks up where you (or your teammate) left off.
+
+### Claude knows why code was written
+
+You're reading `payment_handler.py` and see a complex retry mechanism. Instead of guessing, Claude automatically looks up the checkpoint where it was written and tells you:
+
+> "This was added in checkpoint a3f8b9c1 on March 28. The user reported that Stripe webhooks were arriving out of order, causing duplicate charge attempts. The retry mechanism with exponential backoff was chosen over a simple queue because the team needed it deployed same-day without infrastructure changes."
+
+### Search across all past sessions
+
+```
+> find the session where we discussed the webhook ordering problem
+
+Found 3 results:
+
+Checkpoint    Session   Date        Topic
+a3f8b9c1d2e4  b64e871e  2026-03-28  Implement Stripe webhook handler
+dfe7c7132205  37252de3  2026-03-29  Fix webhook ordering edge case
+```
+
+### Resume from any machine
+
+Your laptop died. On a new machine:
 
 ```bash
-pip install neander-checkpoints
-```
-
-| Command | Description |
-|---|---|
-| `neander-checkpoints install` | Install skills, agents, scripts, and hooks into a project |
-| `neander-checkpoints uninstall` | Remove everything from a project |
-| `neander-checkpoints resume [id]` | List checkpoints or launch `claude --resume` |
-| `neander-checkpoints config` | View or change settings |
-| `neander-checkpoints config auto_summarize on/off` | Auto-generate summaries on checkpoint creation |
-| `neander-checkpoints config inject_previous_context on/off` | Auto-inject past context on session start |
-
-## Skills (inside Claude Code)
-
-Claude auto-invokes these based on conversation context:
-
-| Skill | Description |
-|---|---|
-| `/neander-status` | Overview of recent checkpoints |
-| `/neander-search` | Search checkpoints by keyword, branch, file, date, or natural language |
-| `/neander-transcript` | View the condensed conversation transcript |
-| `/neander-summarize` | Generate an AI summary and persist it |
-| `/neander-session-stats` | Token usage, cost estimate, duration, files modified |
-| `/neander-redact` | Scan a transcript for secrets and PII |
-
-## Agents (subagents)
-
-| Agent | Description |
-|---|---|
-| `neander-code-context` | Researches why code was written by searching checkpoint transcripts. Auto-spawns when Claude reads unfamiliar code or user asks about code history. |
-
-## Features
-
-### Automatic context on session start
-
-When you start a new Claude session on a feature branch, Claude automatically knows what was done before:
-
-```
-[neander-checkpoints] Previous work on feat/impl-tasks-from-td:
-
-• Simplify generate_tasks flow — replaced multi-file export with single JSON. (2026-03-28)
-  Open: Surgical refinement is LLM-dependent.
-
-• Implement five refinement improvements for generate_tasks. (2026-03-28)
-  Open: Patch format must be followed exactly.
-```
-
-Controlled by: `neander-checkpoints config inject_previous_context on/off`
-
-### Auto-summarize
-
-Checkpoints are automatically summarized using `claude --print` when created. Summaries are cached in checkpoint metadata and used by the session start context.
-
-Controlled by: `neander-checkpoints config auto_summarize on/off`
-
-### Code context agent
-
-When Claude reads unfamiliar code or is about to refactor, the `neander-code-context` agent searches past checkpoints to explain WHY the code was written that way — the original problem, design reasoning, rejected alternatives, and known trade-offs.
-
-### Transcripts
-
-Clean, readable conversation flow — strips IDE noise, tool results, and thinking blocks.
-
-```
---- 2026-03-22 ---
-
-12:21 [User] Implement the following plan...
-
-12:21 [Assistant] I'll read both files in parallel.
-
-[Tool] Read: modules/chat/chat_websocket_handler.py
-
-[Tool] Edit: modules/chat/chat_websocket_handler.py
-
-[Tool] Bash: Run chat module tests
-
-12:22 [Assistant] Both fixes are done.
-```
-
-### AI summaries
-
-Structured summaries with intent, outcome, learnings, friction, and open items. Generated once, persisted to the checkpoint branch, cached across sessions and machines.
-
-### Cross-machine resume
-
-```bash
-neander-checkpoints resume <checkpoint-id>
+neander-checkpoints resume a3f8b9c1d2e4
 # Fetches transcript from remote → launches claude --resume
 ```
 
-### Secret redaction
+Claude opens with the full conversation context from that session.
 
-Three-layer detection before transcripts leave your machine:
-1. **Shannon entropy** — high-entropy strings (API keys, tokens)
-2. **Pattern matching** — 15+ known formats (AWS keys, GitHub PATs, JWTs, connection strings)
-3. **PII detection** — emails, phone numbers, SSNs
+## How it works
+
+Install once, everything is automatic:
+
+1. **You code with Claude** — business as usual
+2. **On every commit**, the session transcript is saved as a checkpoint
+3. **On session end**, a final checkpoint captures everything
+4. **On next session start**, Claude gets context from past checkpoints on this branch
+5. **When reading code**, a subagent can look up why any piece of code was written
+
+Checkpoints live on a `neander/checkpoints/v1` orphan branch — separate from your code, pushed to remote automatically, available across machines.
 
 ## Install
 
@@ -144,53 +77,90 @@ cd /path/to/project
 neander-checkpoints install
 ```
 
-The installer validates prerequisites (git repo, Claude Code, Python 3.10+), then installs:
-
-- **Scripts** — JSONL parser, checkpoint creator, secret redaction, session restore
-- **Skills** — 6 auto-invoked skills for searching, viewing, and summarizing checkpoints
-- **Agents** — code-context subagent for understanding code history
-- **Hooks** — `SessionStart`, `Stop`, and `PostToolUse:Bash` for automatic context injection, checkpointing, and commit linking
-- **Permissions** — auto-allow rules so scripts run without approval prompts
-- **CLAUDE.md** — instructions telling Claude when to proactively use checkpoint tools
+Validates prerequisites (git repo, Claude Code, Python 3.10+), then installs scripts, skills, agents, hooks, and permissions into `.claude/`. Self-contained — anyone who clones the repo gets it working.
 
 ### Uninstall
 
 ```bash
-cd /path/to/project
 neander-checkpoints uninstall
 ```
 
+## CLI
+
+| Command | Description |
+|---|---|
+| `neander-checkpoints install` | Set up a project |
+| `neander-checkpoints uninstall` | Remove from a project |
+| `neander-checkpoints resume [id]` | List checkpoints or launch `claude --resume` |
+| `neander-checkpoints config` | View or change settings |
+
+### Settings
+
+| Setting | Default | Description |
+|---|---|---|
+| `inject_previous_context` | on | Inject past checkpoint summaries on session start |
+| `auto_summarize` | on | Auto-generate summaries when checkpoints are created |
+
+```bash
+neander-checkpoints config                              # show all
+neander-checkpoints config inject_previous_context off  # disable
+```
+
+## What gets installed
+
+### Skills (Claude auto-invokes)
+
+| Skill | When it triggers |
+|---|---|
+| `/neander-status` | "what's been going on", "recent checkpoints" |
+| `/neander-search` | "find the session where...", "what did I do yesterday" |
+| `/neander-transcript` | "show me what happened in that session" |
+| `/neander-summarize` | "summarize this checkpoint" |
+| `/neander-session-stats` | "how much did that cost", "token usage" |
+| `/neander-redact` | "scan for secrets before sharing" (user-invoked only) |
+
+### Agents (subagents)
+
+| Agent | When it triggers |
+|---|---|
+| `neander-code-context` | Claude reads unfamiliar code, user asks "why was this done this way", about to refactor |
+
+### Hooks
+
+| Hook | What it does |
+|---|---|
+| `SessionStart` | Injects past checkpoint context into new sessions |
+| `Stop` | Creates a checkpoint when session ends |
+| `PostToolUse:Bash` | Creates a checkpoint on git commits, links commits to sessions |
+
 ## Checkpoint format
 
-Stored on `neander/checkpoints/v1` — a versioned orphan branch that never touches your code history.
+Stored on `neander/checkpoints/v1` — a versioned orphan branch.
 
 ```
 neander/checkpoints/v1/
-├── index.log                          # fast lookup index
+├── index.log                          # checkpoint_id|session_id|commit_sha|timestamp
 ├── a3/
 │   └── f8b9c1d2e4567890/
-│       ├── metadata.json              # checkpoint ID, commit, files, AI summary
-│       ├── transcript-<session-1>.jsonl
-│       └── transcript-<session-2>.jsonl
+│       ├── metadata.json              # commit, files, AI summary
+│       └── transcript-<session>.jsonl # full conversation
 ```
+
+Each checkpoint has:
+- **Transcript** — full conversation (prompts, responses, tool calls)
+- **Metadata** — commit SHA, files modified, timestamps
+- **Summary** — AI-generated intent, outcome, learnings, friction, open items (auto-generated or on-demand)
 
 ## Project structure
 
 ```
-scripts/                     Source scripts (installed into .claude/scripts/)
-agents/                      Source agents (installed into .claude/agents/)
-  neander-code-context/      Code history research subagent
-skills/                      Source skills (installed into .claude/skills/)
-  neander-status/            Checkpoints overview
-  neander-search/            Search checkpoints
-  neander-transcript/        View transcript
-  neander-summarize/         AI summary with caching
-  neander-session-stats/     Token usage, costs
-  neander-redact/            Redact secrets
-config/                      Hook configs, CLAUDE.md snippet
-src/neander_checkpoints/     pip package (CLI)
-tests/                       Tests
-build.sh                     Bundle source → package before publishing
+scripts/       Source scripts
+agents/        Source agents (neander-code-context)
+skills/        Source skills (status, search, transcript, summarize, stats, redact)
+config/        Hook configs, CLAUDE.md snippet
+src/           pip package (CLI)
+tests/         Tests
+build.sh       Bundle source → package before publishing
 ```
 
 ## Requirements
