@@ -1,6 +1,6 @@
 [project]
 name = "neander-checkpoints"
-version = "0.1.0"
+version = "0.2.0"
 description = "Checkpoint management for Claude Code sessions"
 requires-python = ">=3.10"
 license = "MIT"
@@ -19,5 +19,6 @@ where = ["src"]
 neander_checkpoints = [
     "bundled/scripts/*",
     "bundled/skills/**/*",
+    "bundled/agents/**/*",
     "bundled/hooks/*",
 ]
