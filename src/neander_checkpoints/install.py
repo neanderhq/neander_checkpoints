@@ -243,6 +243,24 @@ def run_install(project_path: str | None = None, global_mode: bool = False) -> i
                 (target_skill / "SKILL.md").write_text(content)
                 print(f"  [copy] skills/{skill_dir.name}")
 
+    # --- Copy agents ---
+    agents_src = bundled / "agents"
+    agents_target = target_base / "agents"
+
+    if agents_src.exists():
+        for agent_dir in sorted(agents_src.iterdir()):
+            if not agent_dir.is_dir() or not agent_dir.name.startswith("neander-"):
+                continue
+            target_agent = agents_target / agent_dir.name
+            target_agent.mkdir(parents=True, exist_ok=True)
+            agent_md = agent_dir / "SKILL.md"
+            if agent_md.exists():
+                content = agent_md.read_text()
+                content = content.replace("__SCRIPTS_DIR__", installed_scripts_dir)
+                content = content.replace("__HOME__", str(home))
+                (target_agent / "SKILL.md").write_text(content)
+                print(f"  [copy] agents/{agent_dir.name}")
+
     # --- Clean up old commands from previous installs ---
     old_cmds = target_base / "commands"
     if old_cmds.is_dir():
