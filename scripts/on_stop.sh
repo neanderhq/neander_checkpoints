@@ -10,7 +10,7 @@
 # Usage: on_stop.sh (reads JSON from stdin)
 #
 
-set -euo pipefail
+set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PARSER="$SCRIPT_DIR/parse_jsonl.py"
@@ -42,4 +42,4 @@ if [ "$FILE_COUNT" -eq 0 ]; then
 fi
 
 COMMIT_SHA="$(git rev-parse HEAD 2>/dev/null || echo 'none')"
-"$SCRIPT_DIR/checkpoint.sh" "$SESSION_FILE" "$COMMIT_SHA"
+"$SCRIPT_DIR/checkpoint.sh" "$SESSION_FILE" "$COMMIT_SHA" &
