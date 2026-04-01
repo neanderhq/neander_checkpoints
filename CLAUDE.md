@@ -2,6 +2,8 @@
 
 Checkpoint management for Claude Code sessions — captures, searches, and resurfaces past session context automatically.
 
+**IMPORTANT:** Do NOT commit or push changes unless explicitly asked by the user. Wait for user to request `git commit` or `git push`.
+
 ## Project structure
 
 ```
