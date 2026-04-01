@@ -24,6 +24,13 @@ def cmd_install(args: argparse.Namespace) -> int:
     )
 
 
+def cmd_uninstall(args: argparse.Namespace) -> int:
+    """Handle the uninstall command."""
+    from neander_checkpoints.uninstall import run_uninstall
+
+    return run_uninstall(project_path=args.project)
+
+
 def cmd_resume(args: argparse.Namespace) -> int:
     """Handle the resume command."""
     from neander_checkpoints.resume import run_resume
@@ -125,6 +132,18 @@ def main() -> None:
         help="Install globally into ~/.claude/",
     )
 
+    # --- uninstall ---
+    p_uninstall = subparsers.add_parser(
+        "uninstall",
+        help="Remove skills, scripts, agents, and hooks from a project",
+    )
+    p_uninstall.add_argument(
+        "project",
+        nargs="?",
+        default=None,
+        help="Project path (default: current directory)",
+    )
+
     # --- resume ---
     p_resume = subparsers.add_parser(
         "resume",
@@ -157,6 +176,7 @@ def main() -> None:
 
     handler = {
         "install": cmd_install,
+        "uninstall": cmd_uninstall,
         "resume": cmd_resume,
         "config": cmd_config,
     }

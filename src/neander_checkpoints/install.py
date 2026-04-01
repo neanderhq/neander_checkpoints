@@ -208,9 +208,41 @@ def run_install(project_path: str | None = None, global_mode: bool = False) -> i
         git_dir = resolved_project / ".git"
         print(f"Installing neander-checkpoints into: {resolved_project}")
 
-    # --- Copy scripts ---
-    scripts_src = bundled / "scripts"
+    # --- Clean stale neander files from previous installs ---
     scripts_target = target_base / "scripts"
+    skills_target = target_base / "skills"
+    agents_target = target_base / "agents"
+
+    # Wipe old scripts (all files in .claude/scripts/ are ours)
+    if scripts_target.exists():
+        for old in scripts_target.iterdir():
+            if old.is_file():
+                old.unlink()
+        print("  [clean] removed old scripts")
+
+    # Wipe old neander-* skills (preserve non-neander skills)
+    if skills_target.exists():
+        for old in skills_target.iterdir():
+            if old.is_dir() and old.name.startswith("neander-"):
+                shutil.rmtree(old)
+        print("  [clean] removed old neander skills")
+
+    # Wipe old neander-* agents (preserve non-neander agents)
+    if agents_target.exists():
+        for old in agents_target.iterdir():
+            if old.is_dir() and old.name.startswith("neander-"):
+                shutil.rmtree(old)
+        print("  [clean] removed old neander agents")
+
+    # Wipe old neander-* commands (legacy format)
+    old_cmds = target_base / "commands"
+    if old_cmds.is_dir():
+        for old_cmd in old_cmds.glob("neander-*.md"):
+            old_cmd.unlink()
+            print(f"  [clean] removed old command {old_cmd.name}")
+
+    # --- Copy scripts (fresh) ---
+    scripts_src = bundled / "scripts"
     scripts_target.mkdir(parents=True, exist_ok=True)
 
     if scripts_src.exists():
@@ -225,9 +257,8 @@ def run_install(project_path: str | None = None, global_mode: bool = False) -> i
     installed_scripts_dir = str(scripts_target)
     print(f"  Scripts  -> {installed_scripts_dir}\n")
 
-    # --- Copy skills (with __SCRIPTS_DIR__ substitution) ---
+    # --- Copy skills (fresh, with substitution) ---
     skills_src = bundled / "skills"
-    skills_target = target_base / "skills"
 
     if skills_src.exists():
         for skill_dir in sorted(skills_src.iterdir()):
@@ -243,9 +274,8 @@ def run_install(project_path: str | None = None, global_mode: bool = False) -> i
                 (target_skill / "SKILL.md").write_text(content)
                 print(f"  [copy] skills/{skill_dir.name}")
 
-    # --- Copy agents ---
+    # --- Copy agents (fresh, with substitution) ---
     agents_src = bundled / "agents"
-    agents_target = target_base / "agents"
 
     if agents_src.exists():
         for agent_dir in sorted(agents_src.iterdir()):
@@ -260,13 +290,6 @@ def run_install(project_path: str | None = None, global_mode: bool = False) -> i
                 content = content.replace("__HOME__", str(home))
                 (target_agent / "SKILL.md").write_text(content)
                 print(f"  [copy] agents/{agent_dir.name}")
-
-    # --- Clean up old commands from previous installs ---
-    old_cmds = target_base / "commands"
-    if old_cmds.is_dir():
-        for old_cmd in old_cmds.glob("neander-*.md"):
-            old_cmd.unlink()
-            print(f"  [clean] removed old {old_cmd.name}")
 
     # --- Merge hooks + permissions into settings.json ---
     hooks_config_src = bundled / "hooks" / "hooks_config.json"
