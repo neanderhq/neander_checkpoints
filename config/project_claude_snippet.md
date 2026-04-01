@@ -1,36 +1,32 @@
 ## Checkpoint Management (neander_checkpoints)
 
-This project has checkpoint management tools installed in `.claude/scripts/` and `.claude/skills/`.
+This project has checkpoint management tools installed in `.claude/scripts/`, `.claude/skills/`, and `.claude/agents/`.
 
-### IMPORTANT: Always use skills, not raw scripts
+### IMPORTANT: Use skills and agents, not raw scripts
 
-When the user asks about checkpoints, sessions, summaries, transcripts, or history, **invoke the corresponding skill using the Skill tool** — do NOT try to do it yourself with raw git commands or scripts. The skills handle persistence and formatting correctly.
+When the user asks about checkpoints, summaries, transcripts, or history, **invoke the corresponding skill or agent** — do NOT try to do it yourself with raw git commands or scripts.
 
-| User says | Invoke this skill |
+| User says | Use |
 |---|---|
-| "summarize checkpoint ..." | `/neander-summarize` |
-| "show transcript ...", "what happened in ..." | `/neander-transcript` |
-| "search checkpoints ...", "find the checkpoint where ..." | `/neander-search` |
-| "what did I do yesterday/last week" | `/neander-search` |
-| "checkpoint stats", "how much did it cost" | `/neander-session-stats` |
-| "recent checkpoints", "what's been going on" | `/neander-status` |
-| "why was this done this way?", understanding code | `/neander-code-context` |
-| about to refactor unfamiliar code | `/neander-code-context` |
+| "summarize checkpoint ..." | Skill: `/neander-summarize` |
+| "show transcript ...", "what happened in ..." | Skill: `/neander-transcript` |
+| "search checkpoints ...", "find the checkpoint where ..." | Skill: `/neander-search` |
+| "what did I do yesterday/last week" | Skill: `/neander-search` |
+| "checkpoint stats", "how much did it cost" | Skill: `/neander-session-stats` |
+| "recent checkpoints", "what's been going on" | Skill: `/neander-status` |
+| "why was this done this way?", understanding code | Agent: `neander-code-context` (auto-spawns) |
+| about to refactor unfamiliar code | Agent: `neander-code-context` (auto-spawns) |
 
 ### When to use these tools proactively
 
-You don't need to wait for the user to run a slash command. Use the skills naturally when the context calls for it:
-
-- **You're reading code and don't understand a design choice** → invoke `/neander-code-context` with the file path. This is the most important proactive use — it tells you WHY code was written a certain way.
+- **You're reading code and don't understand a design choice** → the `neander-code-context` agent should auto-spawn. If it doesn't, spawn it yourself via the Agent tool.
+- **User asks "why was this done this way?"** → let `neander-code-context` agent handle it
 - **User asks about previous work** → invoke `/neander-search`
-- **User asks "why was this done this way?"** → invoke `/neander-code-context`
 - **User asks about code history beyond git** → invoke `/neander-search`, then `/neander-transcript`
 - **User seems lost or is re-doing work** → invoke `/neander-search` to check if a previous checkpoint solved this
-- **You're about to refactor code** → invoke `/neander-code-context` first to understand the original intent and constraints
+- **You're about to refactor code** → let `neander-code-context` agent research the original intent first
 
-### Available scripts (for direct use only when skills don't cover the case)
-
-All commands read from the git checkpoint branch. Use `--fetch` to pull remote data first. The primary flag is `--checkpoint`/`-c` (`--session`/`-s` still works as alias).
+### Available scripts (for direct use only when skills/agents don't cover the case)
 
 ```bash
 python3 __SCRIPTS_DIR__/parse_jsonl.py list --project <cwd>
