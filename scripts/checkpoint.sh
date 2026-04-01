@@ -175,7 +175,7 @@ echo "  Ref:      $CHECKPOINT_REF"
 # Auto-summarize if enabled
 CONFIG=".claude/neander-checkpoints.json"
 if [ -f "$CONFIG" ]; then
-    AUTO_SUMMARIZE=$(python3 -c "import json; print(json.load(open('$CONFIG')).get('auto_summarize', False))" 2>/dev/null || echo "False")
+    AUTO_SUMMARIZE=$(python3 -c "import json; print(json.load(open('$CONFIG')).get('auto_summarize', True))" 2>/dev/null || echo "True")
     if [ "$AUTO_SUMMARIZE" = "True" ]; then
         echo "  Auto-summarizing..."
         "$SCRIPT_DIR/auto_summarize.sh" "$CHECKPOINT_ID" "${VALID_FILES[0]}" &
