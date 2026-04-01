@@ -10,6 +10,7 @@ from neander_checkpoints import __version__
 CONFIG_PATH = Path(".claude/neander-checkpoints.json")
 DEFAULTS = {
     "inject_previous_context": True,
+    "auto_summarize": False,
 }
 
 
