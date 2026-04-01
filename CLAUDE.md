@@ -1,87 +1,68 @@
-# neander_code_sessions
+# neander_checkpoints
 
+Checkpoint management for Claude Code sessions — captures, searches, and resurfaces past session context automatically.
 
 ## Project structure
 
 ```
-scripts/                — Core logic (Python + Bash)
-  parse_jsonl.py        — JSONL parser: list/search/status/stats/transcript (checkpoint-centric, reads from git branch, --fetch for remote)
-  checkpoint.sh         — Save session(s) to neander/checkpoints/v1 orphan branch, auto-push
-  save_summary.sh       — Persist AI summary JSON into checkpoint metadata
-  restore.sh            — Fetch session transcript from remote for cross-machine resume
-  redact.py             — 3-layer secret redaction (entropy, patterns, PII)
-  link_commit.sh        — Add Claude-Session trailer to git commits
-  detect_commit.sh      — Hook: detect git commit → trigger link_commit + checkpoint
+scripts/                     Source scripts
+  parse_jsonl.py             JSONL parser (checkpoint-centric, reads from git branch)
+  checkpoint.sh              Save session to orphan branch, auto-push, auto-summarize
+  auto_summarize.sh          Generate summary via claude --print
+  save_summary.sh            Persist summary JSON into checkpoint metadata
+  persist_summary.sh         Wrapper for save via stdin
+  restore.sh                 Fetch transcript from remote for cross-machine resume
+  redact.py                  3-layer secret redaction
+  link_commit.sh             Add Claude-Session trailer to commits
+  detect_commit.sh           Hook: detect git commit → link + checkpoint
+  on_stop.sh                 Hook: checkpoint on session stop
+  on_session_start.sh        Hook: inject past checkpoint context
+  get_branch_context.py      Read checkpoint summaries for current branch
 
-.claude/skills/         — Skills (auto-invoked by Claude based on conversation context)
-  neander-status/          — /neander-status: recent checkpoints overview
-  neander-search/          — /neander-search: search by keyword/branch/file/date/commit
-  neander-transcript/      — /neander-transcript: condensed transcript
-  neander-summarize/       — /neander-summarize: AI summary with caching
-  neander-session-stats/   — /neander-session-stats: tokens, costs, duration
-  neander-resume/          — /neander-resume: resume from checkpoint (cross-machine)
-  neander-redact/          — /neander-redact: scan and redact secrets (user-invoked only)
+agents/                      Subagents (run in isolated context)
+  neander-code-context/      Research why code was written from checkpoint history
 
-hooks/                  — Installation and config
-  hooks_config.json     — Hook definitions (Stop → checkpoint, PostToolUse:Bash → detect commit)
-  install.sh            — Install into a target project (copies scripts, skills, hooks, permissions)
-  uninstall.sh          — Clean removal
-```
+skills/                      Skills (run in main context)
+  neander-status/            Checkpoints overview
+  neander-search/            Search checkpoints
+  neander-transcript/        View transcript
+  neander-summarize/         AI summary with caching
+  neander-session-stats/     Token usage, costs
+  neander-redact/            Redact secrets (user-invoked only)
 
-## Checkpoint format (neander/checkpoints/v1)
-
-Stored on a versioned orphan branch. Each checkpoint is sharded by its 16-char hex ID:
-
-```
-<id[:2]>/<id[2:]>/
-  metadata.json                    — checkpoint_id, session_ids[], commit_sha, merged_files[], summary
-  transcript-<session-id>.jsonl    — one per session (multi-session support)
-```
-
-- `summary` is null until `/neander-summarize` generates and persists it via `save_summary.sh`
-- `index.log` at branch root maps checkpoint_id|session_id|commit_sha|timestamp for fast lookup
-- Auto-pushed to remote after every checkpoint creation
-
-## Installation
-
-```bash
-./hooks/install.sh /path/to/project   # copies scripts + skills + hooks + permissions
-./hooks/install.sh --global           # everything into ~/.claude/
-```
-
-Uninstall:
-```bash
-./hooks/uninstall.sh /path/to/project
-./hooks/uninstall.sh --global
+config/                      Hook configs, CLAUDE.md snippet
+src/neander_checkpoints/     pip package (install, uninstall, resume, config CLI)
+tests/                       Tests
+build.sh                     Bundle source → package before publishing
 ```
 
 ## Key flows
 
+### Session start → context injection
+1. `SessionStart` hook runs `on_session_start.sh`
+2. `get_branch_context.py` reads checkpoint summaries for current branch
+3. Outputs past work context → Claude Code injects into session
+
 ### Checkpointing
 1. `Stop` hook or `PostToolUse:Bash` (on git commit) triggers `checkpoint.sh`
-2. `checkpoint.sh` switches to orphan branch, writes transcript + metadata, commits, pushes
-3. `detect_commit.sh` also runs `link_commit.sh` to add Claude-Session trailer to the commit
+2. Writes transcript + metadata to orphan branch, commits, pushes
+3. If `auto_summarize` is on, runs `claude --print` to generate summary
+
+### Code context agent
+1. Claude reads unfamiliar code or user asks "why was this done?"
+2. `neander-code-context` agent auto-spawns
+3. Searches checkpoint branch for checkpoints that modified the file
+4. Returns distilled reasoning from transcripts
 
 ### Cross-machine resume
-1. User runs `neander resume <checkpoint-id>` on machine B (CLI command, not a skill)
-2. Checkpoint looked up → session ID extracted → `restore.sh` fetches transcript from remote
-3. Transcript placed in `~/.claude/projects/`
-4. User runs `claude --resume <session-id>`
+1. `neander-checkpoints resume <id>` on another machine
+2. Resolves checkpoint → session ID → fetches transcript from remote
+3. Launches `claude --resume <session-id>`
 
-### AI summary caching
-1. `/neander-summarize` checks `metadata.summary` on checkpoint branch
-2. If cached and not `--force`, displays cached summary
-3. If generating fresh, produces structured JSON (intent, outcome, learnings, friction, open_items)
-4. `save_summary.sh` writes summary into metadata.json, commits, pushes
+## Settings
 
-## Scripts can also be used standalone
+Stored in `.claude/neander-checkpoints.json`:
+- `inject_previous_context` (default: on) — inject past summaries on session start
+- `auto_summarize` (default: on) — auto-generate summaries on checkpoint creation
 
-All commands read from the git checkpoint branch (`neander/checkpoints/v1`), not local files. Use `--fetch` to pull remote checkpoint data first. The primary flag is `--checkpoint`/`-c` (`--session`/`-s` still works as an alias).
-
-```bash
-python3 scripts/parse_jsonl.py list
-python3 scripts/parse_jsonl.py stats --checkpoint <checkpoint-id>
-python3 scripts/parse_jsonl.py transcript --checkpoint <checkpoint-id>
-python3 scripts/parse_jsonl.py search --project <cwd> --keyword "text" --fetch
-python3 scripts/redact.py --check <path>
-```
+Manage with: `neander-checkpoints config`

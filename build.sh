@@ -17,7 +17,7 @@ echo "Building neander-checkpoints package..."
 
 # Clean previous bundle
 rm -rf "$BUNDLED"
-mkdir -p "$BUNDLED/scripts" "$BUNDLED/skills" "$BUNDLED/hooks"
+mkdir -p "$BUNDLED/scripts" "$BUNDLED/skills" "$BUNDLED/agents" "$BUNDLED/hooks"
 
 # Copy scripts
 for f in "$REPO_ROOT/scripts/"*; do
@@ -32,6 +32,14 @@ for skill_dir in "$REPO_ROOT/skills/neander-"*; do
     mkdir -p "$BUNDLED/skills/$name"
     cp "$skill_dir/SKILL.md" "$BUNDLED/skills/$name/"
     echo "  [bundle] skills/$name"
+done
+
+# Copy agents
+for agent_dir in "$REPO_ROOT/agents/neander-"*; do
+    name="$(basename "$agent_dir")"
+    mkdir -p "$BUNDLED/agents/$name"
+    cp "$agent_dir/SKILL.md" "$BUNDLED/agents/$name/"
+    echo "  [bundle] agents/$name"
 done
 
 # Copy hook configs

@@ -6,3 +6,4 @@ __pycache__/
 src/*.egg-info/
 bundled/
 src/neander_checkpoints/bundled/
+dist/
