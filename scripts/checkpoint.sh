@@ -2,8 +2,8 @@
 #
 # checkpoint.sh — Save current session transcript to a git orphan branch.
 #
-# Creates/updates a neander/checkpoints/v1 orphan branch with session
-# transcripts and metadata. Supports multiple sessions per checkpoint.
+# Uses git worktree to avoid switching branches in the user's working tree.
+# This prevents Claude Code from losing its skill cache mid-session.
 #
 # Usage:
 #   checkpoint.sh <session_jsonl_path> [commit_sha]
@@ -110,32 +110,36 @@ metadata = {
 print(json.dumps(metadata, indent=2))
 ")"
 
-# Save current branch
-ORIGINAL_BRANCH="$(git symbolic-ref --short HEAD 2>/dev/null || git rev-parse HEAD)"
-STASH_NEEDED=false
-if ! git diff --quiet 2>/dev/null || ! git diff --cached --quiet 2>/dev/null; then
-    STASH_NEEDED=true
-    git stash push -m "checkpoint-auto-stash" --quiet
-fi
+# --- Use git worktree to avoid switching branches in the user's working tree ---
+
+WORKTREE_DIR="$(mktemp -d)"
 
 cleanup() {
-    git checkout "$ORIGINAL_BRANCH" --quiet 2>/dev/null || true
-    if [ "$STASH_NEEDED" = true ]; then
-        git stash pop --quiet 2>/dev/null || true
-    fi
+    # Remove the worktree
+    git worktree remove "$WORKTREE_DIR" --force 2>/dev/null || true
+    rm -rf "$WORKTREE_DIR" 2>/dev/null || true
 }
 trap cleanup EXIT
 
-# Create orphan branch if it doesn't exist
+# Initialize the checkpoint branch if it doesn't exist
 if ! git rev-parse --verify "$CHECKPOINT_BRANCH" >/dev/null 2>&1; then
+    # Create orphan branch without switching — use a temp worktree
+    git worktree add --detach "$WORKTREE_DIR" 2>/dev/null
+    cd "$WORKTREE_DIR"
     git checkout --orphan "$CHECKPOINT_BRANCH" --quiet
     git rm -rf . --quiet 2>/dev/null || true
     echo "# Claude Code Session Checkpoints (v1)" > README.md
     git add README.md
     git commit -m "Initialize checkpoint branch" --quiet
-else
-    git checkout "$CHECKPOINT_BRANCH" --quiet
+    cd - > /dev/null
+    git worktree remove "$WORKTREE_DIR" --force 2>/dev/null || true
 fi
+
+# Add worktree for the checkpoint branch
+git worktree add "$WORKTREE_DIR" "$CHECKPOINT_BRANCH" --quiet 2>/dev/null
+
+# Do all work in the worktree
+cd "$WORKTREE_DIR"
 
 # Create checkpoint directory
 mkdir -p "$SHARD_DIR"
@@ -160,6 +164,9 @@ git add "$SHARD_DIR" index.log
 git commit -m "checkpoint: ${CHECKPOINT_ID} sessions=${#SESSION_IDS[@]} commit=${COMMIT_SHA:0:8}" --quiet
 
 CHECKPOINT_REF="$(git rev-parse HEAD)"
+
+# Go back to original directory before push (worktree cleanup happens in trap)
+cd - > /dev/null
 
 # Push to remote if one exists
 if git remote get-url origin >/dev/null 2>&1; then
