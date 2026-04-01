@@ -31,12 +31,25 @@ Use `/tmp/neander-transcript.jsonl` as the session file. Remember to use the **c
 
 **File path**: Use it directly.
 
-## Step 1: Get stats and transcript
+## Step 1: Get stats and scoped transcript
 
+First get stats:
 ```
-python3 __SCRIPTS_DIR__/parse_jsonl.py stats --checkpoint <path> --json
-python3 __SCRIPTS_DIR__/parse_jsonl.py transcript --checkpoint <path>
+python3 __SCRIPTS_DIR__/parse_jsonl.py stats --checkpoint <id> --json
 ```
+
+Then get the **scoped** transcript. If summarizing a checkpoint ID, read the `transcript_offset` from its metadata first:
+```
+git show neander/checkpoints/v1:<id[:2]>/<id[2:]>/metadata.json 2>/dev/null
+```
+Extract the `transcript_offset` value from the JSON. Then get only the delta transcript:
+```
+python3 __SCRIPTS_DIR__/parse_jsonl.py transcript --checkpoint <id> --offset <transcript_offset>
+```
+
+If `transcript_offset` is 0 or not found, omit `--offset` (reads full transcript).
+
+**IMPORTANT**: The `--offset` ensures the summary describes what THIS checkpoint changed, not the entire session. A session may have multiple checkpoints at different commits — each should get its own scoped summary.
 
 ## Step 2: Generate, persist, and display summary — ALL IN ONE Bash command
 

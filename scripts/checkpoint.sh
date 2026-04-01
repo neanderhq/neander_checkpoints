@@ -3,7 +3,8 @@
 # checkpoint.sh — Save current session transcript to a git orphan branch.
 #
 # Uses git worktree to avoid switching branches in the user's working tree.
-# This prevents Claude Code from losing its skill cache mid-session.
+# Tracks transcript_offset per session so summaries can be scoped to the
+# delta since the last checkpoint.
 #
 # Usage:
 #   checkpoint.sh <session_jsonl_path> [commit_sha]
@@ -15,6 +16,7 @@ set -euo pipefail
 CHECKPOINT_BRANCH="neander/checkpoints/v1"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PARSER="$SCRIPT_DIR/parse_jsonl.py"
+STATE_FILE=".git/neander-checkpoint-offsets.json"
 
 # Parse args
 SESSION_FILES=()
@@ -69,6 +71,19 @@ if [ ${#VALID_FILES[@]} -eq 0 ]; then
     exit 1
 fi
 
+# Read transcript offset for the first session (used for scoping summaries)
+TRANSCRIPT_OFFSET=0
+if [ -f "$STATE_FILE" ]; then
+    TRANSCRIPT_OFFSET=$(python3 -c "
+import json
+state = json.load(open('$STATE_FILE'))
+print(state.get('transcript_offsets', {}).get('${SESSION_IDS[0]}', 0))
+" 2>/dev/null || echo "0")
+fi
+
+# Count current transcript lines (this becomes the new offset after checkpoint)
+TRANSCRIPT_LINES=$(wc -l < "${VALID_FILES[0]}" 2>/dev/null | tr -d ' ' || echo "0")
+
 # Generate checkpoint ID
 CHECKPOINT_INPUT=""
 for sid in "${SESSION_IDS[@]}"; do
@@ -96,7 +111,7 @@ done
 # Build session IDs JSON
 SESSION_IDS_JSON="$(python3 -c "import json; print(json.dumps($(printf '"%s",' "${SESSION_IDS[@]}" | sed 's/,$//' | sed 's/^/[/;s/$/]/')))")"
 
-# Build metadata
+# Build metadata (includes transcript_offset for scoped summaries)
 METADATA="$(python3 -c "
 import json
 metadata = {
@@ -105,6 +120,7 @@ metadata = {
     'commit_sha': '$COMMIT_SHA',
     'created_at': '$TIMESTAMP',
     'merged_files': $ALL_FILES_JSON,
+    'transcript_offset': $TRANSCRIPT_OFFSET,
     'summary': None
 }
 print(json.dumps(metadata, indent=2))
@@ -115,7 +131,6 @@ print(json.dumps(metadata, indent=2))
 WORKTREE_DIR="$(mktemp -d)"
 
 cleanup() {
-    # Remove the worktree
     git worktree remove "$WORKTREE_DIR" --force 2>/dev/null || true
     rm -rf "$WORKTREE_DIR" 2>/dev/null || true
 }
@@ -123,7 +138,6 @@ trap cleanup EXIT
 
 # Initialize the checkpoint branch if it doesn't exist
 if ! git rev-parse --verify "$CHECKPOINT_BRANCH" >/dev/null 2>&1; then
-    # Create orphan branch without switching — use a temp worktree
     git worktree add --detach "$WORKTREE_DIR" 2>/dev/null
     cd "$WORKTREE_DIR"
     git checkout --orphan "$CHECKPOINT_BRANCH" --quiet
@@ -165,7 +179,7 @@ git commit -m "checkpoint: ${CHECKPOINT_ID} sessions=${#SESSION_IDS[@]} commit=$
 
 CHECKPOINT_REF="$(git rev-parse HEAD)"
 
-# Go back to original directory before push (worktree cleanup happens in trap)
+# Go back to original directory
 cd - > /dev/null
 
 # Push to remote if one exists
@@ -173,11 +187,28 @@ if git remote get-url origin >/dev/null 2>&1; then
     git push origin "$CHECKPOINT_BRANCH" --quiet 2>/dev/null || true
 fi
 
+# Advance transcript offset for next checkpoint
+python3 -c "
+import json, os
+state_file = '$STATE_FILE'
+state = {}
+if os.path.exists(state_file):
+    with open(state_file) as f:
+        state = json.load(f)
+offsets = state.get('transcript_offsets', {})
+offsets['${SESSION_IDS[0]}'] = $TRANSCRIPT_LINES
+state['transcript_offsets'] = offsets
+with open(state_file, 'w') as f:
+    json.dump(state, f, indent=2)
+    f.write('\n')
+" 2>/dev/null || true
+
 echo "Checkpoint created: $CHECKPOINT_ID"
 echo "  Sessions: ${SESSION_IDS[*]}"
 echo "  Commit:   $COMMIT_SHA"
 echo "  Branch:   $CHECKPOINT_BRANCH"
 echo "  Ref:      $CHECKPOINT_REF"
+echo "  Transcript offset: $TRANSCRIPT_OFFSET → $TRANSCRIPT_LINES"
 
 # Auto-summarize if enabled
 CONFIG=".claude/neander-checkpoints.json"
@@ -185,6 +216,6 @@ if [ -f "$CONFIG" ]; then
     AUTO_SUMMARIZE=$(python3 -c "import json; print(json.load(open('$CONFIG')).get('auto_summarize', True))" 2>/dev/null || echo "True")
     if [ "$AUTO_SUMMARIZE" = "True" ]; then
         echo "  Auto-summarizing..."
-        "$SCRIPT_DIR/auto_summarize.sh" "$CHECKPOINT_ID" "${VALID_FILES[0]}" &
+        "$SCRIPT_DIR/auto_summarize.sh" "$CHECKPOINT_ID" "${VALID_FILES[0]}" "$TRANSCRIPT_OFFSET" &
     fi
 fi

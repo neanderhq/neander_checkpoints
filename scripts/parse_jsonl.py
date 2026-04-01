@@ -210,10 +210,11 @@ def parse_jsonl(filepath: str, offset: int = 0) -> list[dict]:
     return lines
 
 
-def parse_jsonl_from_git(git_path: str) -> list[dict]:
+def parse_jsonl_from_git(git_path: str, offset: int = 0) -> list[dict]:
     """Parse a JSONL file from the checkpoint branch via git show.
 
     Same parsing logic as parse_jsonl() but reads from git instead of filesystem.
+    offset: skip first N lines (for scoped transcript reading).
     """
     try:
         result = subprocess.run(
@@ -226,7 +227,9 @@ def parse_jsonl_from_git(git_path: str) -> list[dict]:
         return []
 
     lines = []
-    for line in result.stdout.split("\n"):
+    for i, line in enumerate(result.stdout.split("\n")):
+        if i < offset:
+            continue
         line = line.strip()
         if not line:
             continue
@@ -850,6 +853,7 @@ if __name__ == "__main__":
     parser.add_argument("--commit", help="Filter by commit SHA")
     parser.add_argument("--limit", "-l", type=int, default=10, help="Max sessions to show (default 10)")
     parser.add_argument("--fetch", action="store_true", help="Fetch remote checkpoints before running command")
+    parser.add_argument("--offset", type=int, default=0, help="Transcript line offset (skip first N lines of JSONL)")
     args = parser.parse_args()
 
     # --session is alias for --checkpoint
@@ -1070,8 +1074,17 @@ if __name__ == "__main__":
             print(f"Snapshots:  {len(data.snapshots)}")
 
     elif args.command == "transcript":
-        data = get_checkpoint_data(id_arg)
-        print(format_condensed_transcript(data.messages, args.max_lines))
+        if args.offset > 0:
+            # Scoped transcript: read only from offset
+            if source_type == "git":
+                entries = parse_jsonl_from_git(source_path, offset=args.offset)
+            else:
+                entries = parse_jsonl(source_path, offset=args.offset)
+            messages = extract_messages(entries)
+            print(format_condensed_transcript(messages, args.max_lines))
+        else:
+            data = get_checkpoint_data(id_arg)
+            print(format_condensed_transcript(data.messages, args.max_lines))
 
     elif args.command == "files":
         if source_type == "git":

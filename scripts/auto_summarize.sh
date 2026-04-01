@@ -1,20 +1,21 @@
 #!/usr/bin/env bash
 #
-# auto_summarize.sh — Generate an AI summary for a checkpoint using claude --print.
+# auto_summarize.sh — Generate a scoped AI summary for a checkpoint.
 #
-# Called by checkpoint.sh when auto_summarize is enabled.
-# Uses claude --print to generate a structured summary, then saves it
-# to the checkpoint metadata.
+# Uses transcript_offset to only summarize the DELTA since the last
+# checkpoint — not the entire session. This ensures each checkpoint's
+# summary describes what happened between this and the previous checkpoint.
 #
-# Usage: auto_summarize.sh <checkpoint_id> <transcript_path>
+# Usage: auto_summarize.sh <checkpoint_id> <transcript_path> [transcript_offset]
 #
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-CHECKPOINT_ID="${1:?Usage: auto_summarize.sh <checkpoint_id> <transcript_path>}"
-TRANSCRIPT_PATH="${2:?Usage: auto_summarize.sh <checkpoint_id> <transcript_path>}"
+CHECKPOINT_ID="${1:?Usage: auto_summarize.sh <checkpoint_id> <transcript_path> [offset]}"
+TRANSCRIPT_PATH="${2:?Usage: auto_summarize.sh <checkpoint_id> <transcript_path> [offset]}"
+TRANSCRIPT_OFFSET="${3:-0}"
 
 # Check claude is available
 if ! command -v claude >/dev/null 2>&1; then
@@ -22,22 +23,31 @@ if ! command -v claude >/dev/null 2>&1; then
     exit 0
 fi
 
-# Generate condensed transcript
-CONDENSED="$(python3 "$SCRIPT_DIR/parse_jsonl.py" transcript --checkpoint "$TRANSCRIPT_PATH" 2>/dev/null | head -200)"
+# Generate condensed transcript from ONLY the delta (offset to end)
+CONDENSED="$(python3 "$SCRIPT_DIR/parse_jsonl.py" transcript --checkpoint "$TRANSCRIPT_PATH" --offset "$TRANSCRIPT_OFFSET" 2>/dev/null)"
 
 if [ -z "$CONDENSED" ]; then
     exit 0
 fi
 
-# Ask Claude to summarize
-PROMPT="Analyze this Claude Code session transcript and return ONLY a JSON object (no markdown, no explanation):
+# Count lines to keep prompt reasonable
+LINE_COUNT="$(echo "$CONDENSED" | wc -l | tr -d ' ')"
+if [ "$LINE_COUNT" -gt 200 ]; then
+    # Take last 200 lines if delta is too large
+    CONDENSED="$(echo "$CONDENSED" | tail -200)"
+fi
+
+# Ask Claude to summarize the delta
+PROMPT="Analyze this portion of a Claude Code session transcript. This is the work done since the LAST checkpoint — summarize only what happened in THIS segment.
+
+Return ONLY a JSON object (no markdown, no explanation):
 
 <transcript>
 $CONDENSED
 </transcript>
 
 Return this exact JSON structure:
-{\"intent\":\"What the user was trying to accomplish (1-2 sentences)\",\"outcome\":\"What was achieved (1-2 sentences)\",\"learnings\":{\"repo\":[],\"code\":[],\"workflow\":[]},\"friction\":[],\"open_items\":[]}"
+{\"intent\":\"What was accomplished in this segment (1-2 specific sentences)\",\"outcome\":\"What was achieved (1-2 sentences)\",\"learnings\":{\"repo\":[],\"code\":[],\"workflow\":[]},\"friction\":[],\"open_items\":[]}"
 
 SUMMARY_JSON="$(claude --print --output-format text "$PROMPT" 2>/dev/null || echo "")"
 
