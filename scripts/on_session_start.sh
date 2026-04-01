@@ -5,12 +5,20 @@
 # Injects past checkpoint context into the new session.
 # Stdout is added to Claude's context automatically by Claude Code.
 #
-# Silent exit (no output) when there's nothing relevant to show.
+# Controlled by .claude/neander-checkpoints.json → inject_previous_context
+# Silent exit (no output) when disabled or nothing relevant.
 #
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# Check if feature is enabled (default: true)
+CONFIG=".claude/neander-checkpoints.json"
+if [ -f "$CONFIG" ]; then
+    ENABLED=$(python3 -c "import json; print(json.load(open('$CONFIG')).get('inject_previous_context', True))" 2>/dev/null || echo "True")
+    [ "$ENABLED" = "False" ] && exit 0
+fi
 
 # Get current branch
 BRANCH="$(git symbolic-ref --short HEAD 2>/dev/null || echo "")"
@@ -19,5 +27,5 @@ BRANCH="$(git symbolic-ref --short HEAD 2>/dev/null || echo "")"
 # Check if checkpoint branch exists
 git rev-parse --verify neander/checkpoints/v1 >/dev/null 2>&1 || exit 0
 
-# Run Python script (stdin is not needed, branch passed as arg)
+# Run Python script
 python3 "$SCRIPT_DIR/get_branch_context.py" "$BRANCH" 2>/dev/null || true
