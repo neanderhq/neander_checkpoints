@@ -49,14 +49,27 @@ $CONDENSED
 Return this exact JSON structure:
 {\"intent\":\"What was accomplished in this segment (1-2 specific sentences)\",\"outcome\":\"What was achieved (1-2 sentences)\",\"learnings\":{\"repo\":[],\"code\":[],\"workflow\":[]},\"friction\":[],\"open_items\":[]}"
 
-SUMMARY_JSON="$(claude --print --output-format text "$PROMPT" 2>/dev/null || echo "")"
+RAW_OUTPUT="$(claude --print --output-format text "$PROMPT" 2>/dev/null || echo "")"
 
-# Validate it's JSON
-if [ -z "$SUMMARY_JSON" ]; then
+if [ -z "$RAW_OUTPUT" ]; then
     exit 0
 fi
 
-echo "$SUMMARY_JSON" | python3 -c "import json,sys; json.load(sys.stdin)" 2>/dev/null || exit 0
+# Strip markdown code fences if present (claude --print wraps JSON in ```json ... ```)
+SUMMARY_JSON="$(echo "$RAW_OUTPUT" | python3 -c "
+import sys, json, re
+raw = sys.stdin.read().strip()
+# Remove ```json ... ``` wrapper
+cleaned = re.sub(r'^[^\S\n]*\`\`\`(?:json)?\s*\n?', '', raw)
+cleaned = re.sub(r'\n?[^\S\n]*\`\`\`[^\S\n]*$', '', cleaned)
+# Validate it's JSON
+json.loads(cleaned)
+print(cleaned)
+" 2>/dev/null || echo "")"
+
+if [ -z "$SUMMARY_JSON" ]; then
+    exit 0
+fi
 
 # Save to checkpoint
 echo "$SUMMARY_JSON" > /tmp/neander-auto-summary-$$.json

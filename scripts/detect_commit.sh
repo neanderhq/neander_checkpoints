@@ -34,11 +34,19 @@ echo "$COMMAND" | grep -qE "checkpoint|save_summary|persist_summary" && exit 0
 CURRENT_BRANCH="$(git symbolic-ref --short HEAD 2>/dev/null || echo "")"
 echo "$CURRENT_BRANCH" | grep -q "neander/checkpoints" && exit 0
 
-# Link the commit to this session
+# Only trigger on NEW commits — skip if HEAD hasn't changed since last checkpoint
+COMMIT_SHA="$(git rev-parse HEAD 2>/dev/null || echo 'none')"
+LAST_SHA_FILE=".git/neander-last-checkpoint-sha"
+if [ -f "$LAST_SHA_FILE" ] && [ "$(cat "$LAST_SHA_FILE")" = "$COMMIT_SHA" ]; then
+    exit 0
+fi
+
+# Link the commit to this session (amends commit, changes SHA)
 "$SCRIPT_DIR/link_commit.sh" "$SESSION_ID"
 
-# Find the session JSONL and checkpoint it at this commit
+# Re-read HEAD after amend and record it to prevent duplicate checkpoints
 COMMIT_SHA="$(git rev-parse HEAD 2>/dev/null || echo 'none')"
+echo "$COMMIT_SHA" > "$LAST_SHA_FILE"
 
 SESSION_FILE=""
 if [ -n "$TRANSCRIPT_PATH" ] && [ -f "$TRANSCRIPT_PATH" ]; then

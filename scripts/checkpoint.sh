@@ -210,12 +210,13 @@ echo "  Branch:   $CHECKPOINT_BRANCH"
 echo "  Ref:      $CHECKPOINT_REF"
 echo "  Transcript offset: $TRANSCRIPT_OFFSET → $TRANSCRIPT_LINES"
 
-# Auto-summarize if enabled
+# Auto-summarize if enabled (default: on)
 CONFIG=".claude/neander-checkpoints.json"
+AUTO_SUMMARIZE="True"
 if [ -f "$CONFIG" ]; then
     AUTO_SUMMARIZE=$(python3 -c "import json; print(json.load(open('$CONFIG')).get('auto_summarize', True))" 2>/dev/null || echo "True")
-    if [ "$AUTO_SUMMARIZE" = "True" ]; then
-        echo "  Auto-summarizing..."
-        "$SCRIPT_DIR/auto_summarize.sh" "$CHECKPOINT_ID" "${VALID_FILES[0]}" "$TRANSCRIPT_OFFSET" &
-    fi
+fi
+if [ "$AUTO_SUMMARIZE" = "True" ]; then
+    echo "  Auto-summarizing..."
+    "$SCRIPT_DIR/auto_summarize.sh" "$CHECKPOINT_ID" "${VALID_FILES[0]}" "$TRANSCRIPT_OFFSET" &
 fi
