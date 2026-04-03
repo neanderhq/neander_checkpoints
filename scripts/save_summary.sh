@@ -2,6 +2,8 @@
 #
 # save_summary.sh — Persist an AI summary into checkpoint metadata.
 #
+# Uses git worktree to avoid switching branches in the user's working tree.
+#
 # Usage:
 #   save_summary.sh <id> <summary_json_file>
 #   echo '{"intent":"..."}' | save_summary.sh <id> -
@@ -41,23 +43,20 @@ if ! git rev-parse --verify "$CHECKPOINT_BRANCH" >/dev/null 2>&1; then
     exit 1
 fi
 
-# Save current branch
-ORIGINAL_BRANCH="$(git symbolic-ref --short HEAD 2>/dev/null || git rev-parse HEAD)"
-STASH_NEEDED=false
-if ! git diff --quiet 2>/dev/null || ! git diff --cached --quiet 2>/dev/null; then
-    STASH_NEEDED=true
-    git stash push -m "save-summary-auto-stash" --quiet
-fi
+# --- Use git worktree to avoid switching branches in the user's working tree ---
+
+WORKTREE_DIR="$(mktemp -d)"
 
 cleanup() {
-    git checkout "$ORIGINAL_BRANCH" --quiet 2>/dev/null || true
-    if [ "$STASH_NEEDED" = true ]; then
-        git stash pop --quiet 2>/dev/null || true
-    fi
+    git worktree remove "$WORKTREE_DIR" --force 2>/dev/null || true
+    rm -rf "$WORKTREE_DIR" 2>/dev/null || true
 }
 trap cleanup EXIT
 
-git checkout "$CHECKPOINT_BRANCH" --quiet
+git worktree add "$WORKTREE_DIR" "$CHECKPOINT_BRANCH" --quiet 2>/dev/null
+
+# Do all work in the worktree
+cd "$WORKTREE_DIR"
 
 # Determine if ID is a checkpoint ID or session ID
 # Checkpoint IDs are 16-char hex, session IDs are UUIDs with dashes
@@ -103,6 +102,8 @@ SESSION_ID="$(python3 -c "import json; d=json.load(open('$METADATA_PATH')); prin
 
 git add "$METADATA_PATH"
 git commit -m "summary: session=${SESSION_ID:0:12} checkpoint=${CHECKPOINT_ID}" --quiet
+
+cd - > /dev/null
 
 # Push to remote if one exists
 if git remote get-url origin >/dev/null 2>&1; then

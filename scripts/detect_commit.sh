@@ -59,5 +59,6 @@ else
 fi
 
 if [ -n "$SESSION_FILE" ]; then
-    "$SCRIPT_DIR/checkpoint.sh" "$SESSION_FILE" "$COMMIT_SHA" &
+    "$SCRIPT_DIR/checkpoint.sh" --on-commit "$SESSION_FILE" "$COMMIT_SHA" </dev/null >/dev/null 2>&1 &
+    disown 2>/dev/null || true
 fi

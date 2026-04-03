@@ -21,12 +21,17 @@ STATE_FILE=".git/neander-checkpoint-offsets.json"
 # Parse args
 SESSION_FILES=()
 COMMIT_SHA=""
+ON_COMMIT=false
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --commit)
             COMMIT_SHA="$2"
             shift 2
+            ;;
+        --on-commit)
+            ON_COMMIT=true
+            shift
             ;;
         *)
             SESSION_FILES+=("$1")
@@ -72,12 +77,19 @@ if [ ${#VALID_FILES[@]} -eq 0 ]; then
 fi
 
 # Read transcript offset for the first session (used for scoping summaries)
+# For commit-triggered checkpoints, use commit_offsets so the summary covers
+# all work since the previous commit (not just since the last checkpoint).
 TRANSCRIPT_OFFSET=0
 if [ -f "$STATE_FILE" ]; then
+    if [ "$ON_COMMIT" = true ]; then
+        OFFSET_KEY="commit_offsets"
+    else
+        OFFSET_KEY="transcript_offsets"
+    fi
     TRANSCRIPT_OFFSET=$(python3 -c "
 import json
 state = json.load(open('$STATE_FILE'))
-print(state.get('transcript_offsets', {}).get('${SESSION_IDS[0]}', 0))
+print(state.get('$OFFSET_KEY', {}).get('${SESSION_IDS[0]}', 0))
 " 2>/dev/null || echo "0")
 fi
 
@@ -187,7 +199,7 @@ if git remote get-url origin >/dev/null 2>&1; then
     git push origin "$CHECKPOINT_BRANCH" --quiet 2>/dev/null || true
 fi
 
-# Advance transcript offset for next checkpoint
+# Advance offsets for next checkpoint
 python3 -c "
 import json, os
 state_file = '$STATE_FILE'
@@ -195,9 +207,15 @@ state = {}
 if os.path.exists(state_file):
     with open(state_file) as f:
         state = json.load(f)
+# Always advance transcript_offsets
 offsets = state.get('transcript_offsets', {})
 offsets['${SESSION_IDS[0]}'] = $TRANSCRIPT_LINES
 state['transcript_offsets'] = offsets
+# Advance commit_offsets only on commit-triggered checkpoints
+if '$ON_COMMIT' == 'true':
+    commit_offsets = state.get('commit_offsets', {})
+    commit_offsets['${SESSION_IDS[0]}'] = $TRANSCRIPT_LINES
+    state['commit_offsets'] = commit_offsets
 with open(state_file, 'w') as f:
     json.dump(state, f, indent=2)
     f.write('\n')
@@ -210,13 +228,17 @@ echo "  Branch:   $CHECKPOINT_BRANCH"
 echo "  Ref:      $CHECKPOINT_REF"
 echo "  Transcript offset: $TRANSCRIPT_OFFSET → $TRANSCRIPT_LINES"
 
-# Auto-summarize if enabled (default: on)
-CONFIG=".claude/neander-checkpoints.json"
-AUTO_SUMMARIZE="True"
-if [ -f "$CONFIG" ]; then
-    AUTO_SUMMARIZE=$(python3 -c "import json; print(json.load(open('$CONFIG')).get('auto_summarize', True))" 2>/dev/null || echo "True")
-fi
-if [ "$AUTO_SUMMARIZE" = "True" ]; then
-    echo "  Auto-summarizing..."
-    "$SCRIPT_DIR/auto_summarize.sh" "$CHECKPOINT_ID" "${VALID_FILES[0]}" "$TRANSCRIPT_OFFSET" &
+# Auto-summarize on commit-triggered checkpoints only.
+# Stop checkpoints skip summarization because the topic would describe
+# uncommitted WIP, creating a misleading association with the commit SHA.
+if [ "$ON_COMMIT" = true ]; then
+    CONFIG=".claude/neander-checkpoints.json"
+    AUTO_SUMMARIZE="True"
+    if [ -f "$CONFIG" ]; then
+        AUTO_SUMMARIZE=$(python3 -c "import json; print(json.load(open('$CONFIG')).get('auto_summarize', True))" 2>/dev/null || echo "True")
+    fi
+    if [ "$AUTO_SUMMARIZE" = "True" ]; then
+        echo "  Auto-summarizing..."
+        "$SCRIPT_DIR/auto_summarize.sh" "$CHECKPOINT_ID" "${VALID_FILES[0]}" "$TRANSCRIPT_OFFSET" &
+    fi
 fi

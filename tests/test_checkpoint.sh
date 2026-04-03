@@ -126,19 +126,49 @@ else
     fail "user's staged files were lost"
 fi
 
-# --- Test 6: Auto-summarize runs by default even without config file ---
+# --- Test 6: Auto-summarize runs on --on-commit checkpoints ---
 
-# Capture checkpoint output — should say "Auto-summarizing..." even with no config
-OUTPUT="$(sleep 1 && bash "$SCRIPT_DIR/checkpoint.sh" "$TRANSCRIPT" --commit jkl012 2>&1)"
-echo "$OUTPUT" | grep -q "Auto-summarizing" && pass "auto-summarize triggers without config file" || fail "auto-summarize should trigger by default without config file"
+OUTPUT="$(sleep 1 && bash "$SCRIPT_DIR/checkpoint.sh" --on-commit "$TRANSCRIPT" --commit jkl012 2>&1)"
+echo "$OUTPUT" | grep -q "Auto-summarizing" && pass "auto-summarize triggers on commit checkpoint" || fail "auto-summarize should trigger on --on-commit"
 
-# --- Test 7: Auto-summarize respects config when present ---
+# --- Test 7: Auto-summarize does NOT run on stop checkpoints ---
+
+OUTPUT="$(sleep 1 && bash "$SCRIPT_DIR/checkpoint.sh" "$TRANSCRIPT" --commit mno345 2>&1)"
+echo "$OUTPUT" | grep -q "Auto-summarizing" && fail "stop checkpoint should not auto-summarize" || pass "stop checkpoint skips auto-summarize"
+
+# --- Test 8: Auto-summarize respects config when present ---
 
 mkdir -p .claude
 echo '{"auto_summarize": false}' > .claude/neander-checkpoints.json
-OUTPUT="$(sleep 1 && bash "$SCRIPT_DIR/checkpoint.sh" "$TRANSCRIPT" --commit mno345 2>&1)"
+OUTPUT="$(sleep 1 && bash "$SCRIPT_DIR/checkpoint.sh" --on-commit "$TRANSCRIPT" --commit pqr678 2>&1)"
 echo "$OUTPUT" | grep -q "Auto-summarizing" && fail "auto-summarize should be disabled by config" || pass "auto-summarize respects config auto_summarize=false"
 rm -rf .claude
+
+# --- Test 9: Commit offset tracks separately from transcript offset ---
+
+# Reset state
+rm -f "$REPO_DIR/.git/neander-checkpoint-offsets.json"
+
+# First commit checkpoint: should use commit_offsets (0)
+sleep 1
+bash "$SCRIPT_DIR/checkpoint.sh" --on-commit "$TRANSCRIPT" --commit aaa111 2>&1 | grep -o "Transcript offset: [0-9]* → [0-9]*"
+
+# Stop checkpoint: advances transcript_offsets but not commit_offsets
+for i in $(seq 16 18); do
+    echo '{"type":"user","message":{"role":"user","content":"wip '$i'"},"timestamp":"2026-04-01T10:02:0'$i'.000Z"}' >> "$TRANSCRIPT"
+done
+sleep 1
+bash "$SCRIPT_DIR/checkpoint.sh" "$TRANSCRIPT" --commit bbb222 2>&1 | grep -o "Transcript offset: [0-9]* → [0-9]*"
+
+# Second commit checkpoint: should use commit_offsets (from first commit), not transcript_offsets
+for i in $(seq 19 20); do
+    echo '{"type":"user","message":{"role":"user","content":"more '$i'"},"timestamp":"2026-04-01T10:03:0'$i'.000Z"}' >> "$TRANSCRIPT"
+done
+sleep 1
+OUTPUT="$(bash "$SCRIPT_DIR/checkpoint.sh" --on-commit "$TRANSCRIPT" --commit ccc333 2>&1)"
+# commit_offsets was set to 15 by the first --on-commit, not 18 by the stop checkpoint
+OFFSET_LINE="$(echo "$OUTPUT" | grep "Transcript offset:")"
+echo "$OFFSET_LINE" | grep -q "Transcript offset: 15" && pass "commit checkpoint uses commit_offsets (not transcript_offsets)" || fail "commit checkpoint should use commit_offsets — got: $OFFSET_LINE"
 
 # --- Summary ---
 
