@@ -41,6 +41,12 @@ if [ "$FILE_COUNT" -eq 0 ]; then
     exit 0
 fi
 
+# Skip if a commit checkpoint was already created at this HEAD
 COMMIT_SHA="$(git rev-parse HEAD 2>/dev/null || echo 'none')"
+LAST_SHA_FILE=".git/neander-last-checkpoint-sha"
+if [ -f "$LAST_SHA_FILE" ] && [ "$(cat "$LAST_SHA_FILE")" = "$COMMIT_SHA" ]; then
+    exit 0
+fi
+
 "$SCRIPT_DIR/checkpoint.sh" "$SESSION_FILE" "$COMMIT_SHA" </dev/null >/dev/null 2>&1 &
 disown 2>/dev/null || true
