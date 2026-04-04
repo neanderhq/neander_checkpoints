@@ -45,6 +45,11 @@ fi
 COMMIT_SHA="$(git rev-parse HEAD 2>/dev/null || echo 'none')"
 LAST_SHA_FILE=".git/neander-last-checkpoint-sha"
 if [ -f "$LAST_SHA_FILE" ] && [ "$(cat "$LAST_SHA_FILE")" = "$COMMIT_SHA" ]; then
+    # No new checkpoint needed, but push any unpushed checkpoint commits
+    CHECKPOINT_BRANCH="neander/checkpoints/v1"
+    if git rev-parse --verify "$CHECKPOINT_BRANCH" >/dev/null 2>&1; then
+        git push origin "$CHECKPOINT_BRANCH" --quiet 2>/dev/null || true
+    fi
     exit 0
 fi
 

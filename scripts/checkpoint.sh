@@ -194,9 +194,10 @@ CHECKPOINT_REF="$(git rev-parse HEAD)"
 # Go back to original directory
 cd - > /dev/null
 
-# Push to remote if one exists
+# Push to remote after a delay to avoid racing with user's git push.
+# If push fails (race/offline), on_stop.sh will retry at session end.
 if git remote get-url origin >/dev/null 2>&1; then
-    git push origin "$CHECKPOINT_BRANCH" --quiet 2>/dev/null || true
+    (sleep 5 && git push origin "$CHECKPOINT_BRANCH" --quiet 2>/dev/null || true) &
 fi
 
 # Advance offsets for next checkpoint
