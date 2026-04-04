@@ -5,7 +5,7 @@
 # Receives JSON on stdin from Claude Code hook system.
 # Checks if the Bash command was a git commit on a user branch
 # (not our checkpoint branch or internal scripts).
-# If so, triggers checkpoint.sh and link_commit.sh.
+# If so, triggers checkpoint.sh.
 #
 # Usage: detect_commit.sh (reads JSON from stdin)
 #
@@ -25,7 +25,7 @@ TRANSCRIPT_PATH="$(echo "$INPUT" | python3 -c "import json,sys; d=json.load(sys.
 # Only trigger on user git commits, not our internal scripts
 # Skip if:
 #   - command doesn't contain "git commit"
-#   - command is from checkpoint.sh, save_summary.sh, or link_commit.sh
+#   - command is from checkpoint.sh, save_summary.sh, or persist_summary.sh
 #   - current branch is the checkpoint branch
 echo "$COMMAND" | grep -qE "git commit" || exit 0
 echo "$COMMAND" | grep -qE "checkpoint|save_summary|persist_summary" && exit 0
@@ -40,12 +40,6 @@ LAST_SHA_FILE=".git/neander-last-checkpoint-sha"
 if [ -f "$LAST_SHA_FILE" ] && [ "$(cat "$LAST_SHA_FILE")" = "$COMMIT_SHA" ]; then
     exit 0
 fi
-
-# Link the commit to this session (amends commit, changes SHA)
-"$SCRIPT_DIR/link_commit.sh" "$SESSION_ID"
-
-# Re-read HEAD after amend and record it to prevent duplicate checkpoints
-COMMIT_SHA="$(git rev-parse HEAD 2>/dev/null || echo 'none')"
 echo "$COMMIT_SHA" > "$LAST_SHA_FILE"
 
 SESSION_FILE=""

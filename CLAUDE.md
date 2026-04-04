@@ -15,8 +15,7 @@ scripts/                     Source scripts
   persist_summary.sh         Wrapper for save via stdin
   restore.sh                 Fetch transcript from remote for cross-machine resume
   redact.py                  3-layer secret redaction
-  link_commit.sh             Add Claude-Session trailer to commits
-  detect_commit.sh           Hook: detect git commit → link + checkpoint
+  detect_commit.sh           Hook: detect git commit → checkpoint
   on_stop.sh                 Hook: checkpoint on session stop
   on_session_start.sh        Hook: inject past checkpoint context
   get_branch_context.py      Read checkpoint summaries for current branch
