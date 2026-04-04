@@ -48,5 +48,8 @@ if [ -f "$LAST_SHA_FILE" ] && [ "$(cat "$LAST_SHA_FILE")" = "$COMMIT_SHA" ]; the
     exit 0
 fi
 
+# Record SHA to prevent duplicate checkpoints (from subsequent stops or detect_commit)
+echo "$COMMIT_SHA" > "$LAST_SHA_FILE"
+
 "$SCRIPT_DIR/checkpoint.sh" "$SESSION_FILE" "$COMMIT_SHA" </dev/null >/dev/null 2>&1 &
 disown 2>/dev/null || true

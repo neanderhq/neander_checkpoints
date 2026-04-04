@@ -90,6 +90,13 @@ def _merge_settings(settings_path: Path, hooks_config: dict, scripts_dir: str) -
         "Bash(*neander-transcript*)",
         "Bash(wc*neander*)",
         "Read(/tmp/neander-*)",
+        "Bash(git log *)",
+        "Bash(git show *)",
+        "Bash(git ls-tree *)",
+        "Bash(git diff *)",
+        "Bash(git branch *)",
+        "Bash(git rev-parse *)",
+        "Bash(git cat-file *)",
     ]
 
     permissions = settings.get("permissions", {})
