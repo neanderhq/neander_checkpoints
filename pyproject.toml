@@ -1,6 +1,6 @@
 [project]
 name = "neander-checkpoints"
-version = "0.2.0"
+version = "0.3.0"
 description = "Checkpoint management for Claude Code sessions"
 requires-python = ">=3.10"
 license = "MIT"
